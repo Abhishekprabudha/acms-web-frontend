@@ -1,11 +1,11 @@
 const DEFAULT_TIMEOUT_MS = 12000;
 
 export function getApiUrl() {
-  return localStorage.getItem('ACMS_APPS_SCRIPT_URL') || import.meta.env.VITE_APPS_SCRIPT_URL || '';
+  return localStorage.getItem('https://script.google.com/macros/s/AKfycbwc8DoEupx3mwkaL2dVR2YMITr_NvpNnDSdTk72wwW1WU-5IJD3ujJwEqJHVFSGS0cH/exec') || import.meta.env.https://script.google.com/macros/s/AKfycbwc8DoEupx3mwkaL2dVR2YMITr_NvpNnDSdTk72wwW1WU-5IJD3ujJwEqJHVFSGS0cH/exec || '';
 }
 
 export function setApiUrl(url) {
-  localStorage.setItem('ACMS_APPS_SCRIPT_URL', url || '');
+  localStorage.setItem('https://script.google.com/macros/s/AKfycbwc8DoEupx3mwkaL2dVR2YMITr_NvpNnDSdTk72wwW1WU-5IJD3ujJwEqJHVFSGS0cH/exec', url || '');
 }
 
 export async function callAcms(action, payload = {}) {
