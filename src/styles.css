@@ -71,3 +71,4 @@
     margin-top:46px;
   }
 }
+.rosterFilters button.selected{background:#0b67b2;color:white}.rosterFilters button.risk{background:#ce3838}.rosterFilters button.warn{background:#9c6a00}.rosterControl{display:flex;align-items:center;gap:12px;margin-bottom:16px}.rosterControl div{display:grid;gap:4px;margin-right:auto}.rosterControl small{color:var(--muted);font-weight:700}.rosterControl select{border:1px solid var(--line);border-radius:14px;padding:11px 12px;font-weight:800;background:white;color:#12223a}.rosterControl button{border:0;border-radius:999px;padding:10px 14px;font-weight:900;cursor:pointer;background:#0b67b2;color:white}@media(max-width:900px){.rosterControl{align-items:stretch;flex-direction:column}.rosterControl div{margin-right:0}}
