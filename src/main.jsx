@@ -39,42 +39,84 @@ const screenMeta = {
 
 
 const glossaryTerms = [
-  { acronym: 'ACMS', term: 'Airline Crew Management System', category: 'System', detail: 'The end-to-end platform for roster planning, crew records, check-in, recovery, rules, analytics and administration.' },
-  { acronym: 'AI', term: 'Artificial Intelligence', category: 'System', detail: 'Assistance layer used to search crew operations data, summarize exceptions and explain recommended actions.' },
-  { acronym: 'API', term: 'Application Programming Interface', category: 'System', detail: 'A secure service endpoint used by the web app, Google Apps Script and external tools to exchange roster data.' },
-  { acronym: 'Apps Script', term: 'Google Apps Script', category: 'System', detail: 'Google automation layer used to expose Sheets-backed webhooks and scheduled triggers.' },
-  { acronym: 'ATR', term: 'Avions de Transport Régional', category: 'Fleet', detail: 'Regional turboprop aircraft family used in flight demand and crew qualification mapping.' },
-  { acronym: 'B737', term: 'Boeing 737', category: 'Fleet', detail: 'Narrow-body aircraft fleet type requiring specific pilot and cabin crew qualification.' },
-  { acronym: 'BKI', term: 'Kota Kinabalu International Airport', category: 'Airport/Base', detail: 'Airport/base code used for crew base, sectors and recovery proximity checks.' },
-  { acronym: 'CC', term: 'Cabin Crew', category: 'Crew', detail: 'Crew members responsible for passenger cabin safety, service and aircraft-specific cabin duties.' },
-  { acronym: 'CPT', term: 'Captain', category: 'Crew', detail: 'Pilot in command of the flight and a required rank in flight demand packages.' },
-  { acronym: 'CRM', term: 'Crew Resource Management', category: 'Training', detail: 'Mandatory human factors and teamwork training tracked in crew qualification records.' },
-  { acronym: 'ETA', term: 'Estimated Time of Arrival', category: 'Flight', detail: 'Projected arrival time used in recovery plans, duty impact assessment and customer communications.' },
-  { acronym: 'FDP', term: 'Flight Duty Period', category: 'Compliance', detail: 'The regulated duty window from report time through post-flight duties, checked by legality rules.' },
+  { acronym: 'ACMS', term: 'Airline Crew Management System', category: 'System', detail: 'End-to-end crew operations platform covering roster planning, crew records, check-in, absence, recovery, legality rules, analytics, integrations and administration.' },
+  { acronym: 'Admin', term: 'Administrator', category: 'Security', detail: 'Privileged user or console area used to configure rules, master data, users, RBAC, backups, triggers and system settings.' },
+  { acronym: 'AI', term: 'Artificial Intelligence', category: 'System', detail: 'Assistant capability used to search operational data, explain acronyms, summarize exceptions and recommend recovery actions.' },
+  { acronym: 'API', term: 'Application Programming Interface', category: 'System', detail: 'Secure endpoint used by the frontend, Google Apps Script backend and integrations to exchange ACMS data.' },
+  { acronym: 'Apps Script', term: 'Google Apps Script', category: 'System', detail: 'Google automation runtime used to expose Sheets-backed web app endpoints, triggers and backend jobs.' },
+  { acronym: 'ATR', term: 'Avions de Transport Régional', category: 'Fleet', detail: 'Regional turboprop aircraft family used for fleet qualification and demand planning.' },
+  { acronym: 'ATR72', term: 'ATR 72', category: 'Fleet', detail: 'Specific ATR regional aircraft type referenced in demo flight demand and crew requirement records.' },
+  { acronym: 'Audit Log', term: 'Audit Log', category: 'Governance', detail: 'Chronological evidence trail for changes, validations, overrides, webhook calls and support actions.' },
+  { acronym: 'B737', term: 'Boeing 737', category: 'Fleet', detail: 'Narrow-body jet fleet type requiring specific pilot and cabin crew qualifications.' },
+  { acronym: 'Base', term: 'Crew Base', category: 'Airport/Base', detail: 'Crew home station used for assignment, reserve coverage, proximity checks and roster planning.' },
+  { acronym: 'BKI', term: 'Kota Kinabalu International Airport', category: 'Airport/Base', detail: 'Airport or base code used for sectors, crew base data and recovery proximity checks.' },
+  { acronym: 'CC', term: 'Cabin Crew', category: 'Crew', detail: 'Cabin crew rank responsible for passenger cabin safety, service and aircraft-specific cabin duties.' },
+  { acronym: 'Check-in', term: 'Crew Check-in', category: 'Operations', detail: 'Day-of-operation attendance confirmation before report or departure, validated by time, location, device or network controls.' },
+  { acronym: 'CPT', term: 'Captain', category: 'Crew', detail: 'Pilot in command and required flight deck rank in crew demand packages.' },
+  { acronym: 'CRM', term: 'Crew Resource Management', category: 'Training', detail: 'Human factors, communication and teamwork training tracked as part of crew qualification validity.' },
+  { acronym: 'Crew 360', term: 'Crew Profile 360', category: 'Crew', detail: 'Full crew profile view combining rank, base, fleet, status, documents, qualification, training and roster history.' },
+  { acronym: 'Crew_Master', term: 'Crew Master Sheet', category: 'Backend', detail: 'Backend master data sheet containing crew identifiers, names, ranks, bases, fleets and status information.' },
+  { acronym: 'Demand Gap', term: 'Demand Gap', category: 'Planning', detail: 'Flight demand item that lacks required crew mapping, aircraft data or assignment coverage.' },
+  { acronym: 'Device Validation', term: 'Device Validation', category: 'Operations', detail: 'Check-in evidence confirming the crew member used an expected or trusted device.' },
+  { acronym: 'ETA', term: 'Estimated Time of Arrival', category: 'Flight', detail: 'Projected arrival time used for recovery planning, disruption communication and duty impact assessment.' },
+  { acronym: 'Exceptions ON', term: 'Exceptions Enabled', category: 'Planning', detail: 'Roster editor filter or mode showing conflicts, missing crew, legality warnings and operational exceptions.' },
+  { acronym: 'FB', term: 'Flight Block', category: 'Roster', detail: 'Roster duty code for an assigned flying block or flight duty sequence; shown as green duty tiles in the roster timeline.' },
+  { acronym: 'FDP', term: 'Flight Duty Period', category: 'Compliance', detail: 'Regulated duty window from report time through post-flight duties, checked by legality rules.' },
   { acronym: 'FO', term: 'First Officer', category: 'Crew', detail: 'Second pilot role paired with the captain for flight deck coverage.' },
-  { acronym: 'FY', term: 'Firefly Flight Designator', category: 'Flight', detail: 'Flight number prefix used in demo flight records such as FY3124 and FY2176.' },
-  { acronym: 'Gantt', term: 'Gantt Timeline', category: 'Planning', detail: 'Timeline view used to display duties, standby, training, leave and roster conflicts across days.' },
-  { acronym: 'Geo', term: 'Geolocation Validation', category: 'Operations', detail: 'Check-in control that validates a crew member is at an approved location.' },
-  { acronym: 'JHB', term: 'Johor Bahru Airport', category: 'Airport/Base', detail: 'Airport/sector code used for flight demand and route qualification context.' },
-  { acronym: 'KPI', term: 'Key Performance Indicator', category: 'Analytics', detail: 'Management metric such as roster stability, utilization, recovery time or payroll readiness.' },
-  { acronym: 'KUL', term: 'Kuala Lumpur International Airport', category: 'Airport/Base', detail: 'Major airport/base code used in crew base and sector assignments.' },
-  { acronym: 'LGK', term: 'Langkawi International Airport', category: 'Airport/Base', detail: 'Airport/sector code used in flight schedule and demand records.' },
-  { acronym: 'LVE', term: 'Leave', category: 'Roster', detail: 'Roster code for approved absence such as annual, medical or special leave.' },
-  { acronym: 'MC', term: 'Medical Certificate', category: 'Operations', detail: 'Evidence attached to absence or sickness cases and reviewed by operations controllers.' },
-  { acronym: 'OCC', term: 'Operations Control Center', category: 'Operations', detail: 'Day-of-operation control team responsible for disruptions, escalations and recovery actions.' },
+  { acronym: 'FY', term: 'Firefly Flight Designator', category: 'Flight', detail: 'Flight number prefix used in demo records such as FY3124, FY2176, FY4020 and FY1108.' },
+  { acronym: 'Gantt', term: 'Gantt Timeline', category: 'Planning', detail: 'Timeline view displaying crew duties, standby, training, leave, off days and conflicts across calendar days.' },
+  { acronym: 'Geo', term: 'Geolocation Validation', category: 'Operations', detail: 'Check-in control validating that a crew member is at an approved reporting location.' },
+  { acronym: 'GitHub Pages', term: 'GitHub Pages', category: 'System', detail: 'Static hosting target for deploying the Vite frontend through GitHub Actions.' },
+  { acronym: 'Hard Block', term: 'Hard Block', category: 'Compliance', detail: 'Legality rule failure that must be resolved or formally overridden before roster publication.' },
+  { acronym: 'JHB', term: 'Johor Bahru Airport', category: 'Airport/Base', detail: 'Airport or sector code used in flight demand, route qualification and recovery context.' },
+  { acronym: 'JSON', term: 'JavaScript Object Notation', category: 'System', detail: 'Structured payload format used in Apps Script-compatible text/plain API requests and responses.' },
+  { acronym: 'KPI', term: 'Key Performance Indicator', category: 'Analytics', detail: 'Management metric such as roster stability, utilization, recovery time, OTP, payroll readiness or check-in compliance.' },
+  { acronym: 'KUL', term: 'Kuala Lumpur International Airport', category: 'Airport/Base', detail: 'Major airport/base code used in crew base, route and sector assignments.' },
+  { acronym: 'Legality', term: 'Legality Validation', category: 'Compliance', detail: 'Rule checking process that evaluates rest, FDP, consecutive duty, qualification and expiry constraints.' },
+  { acronym: 'LGK', term: 'Langkawi International Airport', category: 'Airport/Base', detail: 'Airport or sector code used in schedule, demand and route records.' },
+  { acronym: 'Line Check', term: 'Line Check', category: 'Training', detail: 'Operational proficiency check tracked in qualification timelines and optimizer scenarios.' },
+  { acronym: 'LVE', term: 'Leave', category: 'Roster', detail: 'Roster code for approved absence such as annual, medical, special or other authorized leave.' },
+  { acronym: 'Maker-checker', term: 'Maker-checker Review', category: 'Governance', detail: 'Two-step control where one user submits a data change and another reviews or approves it.' },
+  { acronym: 'Max FDP', term: 'Maximum Flight Duty Period', category: 'Compliance', detail: 'Configured upper limit for flight duty period duration, treated as a hard legality rule.' },
+  { acronym: 'MC', term: 'Medical Certificate', category: 'Operations', detail: 'Evidence attached to sickness or absence cases and reviewed by operations controllers.' },
+  { acronym: 'Min Rest', term: 'Minimum Rest', category: 'Compliance', detail: 'Required rest duration between duties, configured as a hard legality rule in the rules console.' },
+  { acronym: 'MYR', term: 'Malaysian Ringgit', category: 'Analytics', detail: 'Currency used for scenario cost comparison and savings estimates.' },
+  { acronym: 'No-show', term: 'Crew No-show', category: 'Operations', detail: 'Crew member did not report or check in as required, typically triggering escalation and recovery.' },
+  { acronym: 'OCC', term: 'Operations Control Center', category: 'Operations', detail: 'Day-of-operation control team responsible for disruptions, escalations, recovery actions and operational briefings.' },
   { acronym: 'OFF', term: 'Off Duty', category: 'Roster', detail: 'Roster code for protected non-working time.' },
-  { acronym: 'OTP', term: 'On-Time Performance', category: 'Analytics', detail: 'Measure of flights operating on schedule, protected through early recovery actions.' },
-  { acronym: 'PEN', term: 'Penang International Airport', category: 'Airport/Base', detail: 'Airport/base code used in crew base and flight sector data.' },
-  { acronym: 'RBAC', term: 'Role-Based Access Control', category: 'Security', detail: 'Permission model that limits each user to capabilities approved for their role and scope.' },
-  { acronym: 'RC', term: 'Recovery Case', category: 'Recovery', detail: 'Case identifier for a disruption requiring replacement crew, re-planning or escalation.' },
-  { acronym: 'SLA', term: 'Service Level Agreement', category: 'Operations', detail: 'Time target for handling exceptions such as late check-ins, no-shows and recovery cases.' },
+  { acronym: 'Open Trip', term: 'Open Trip', category: 'Planning', detail: 'Flight or duty pairing without sufficient assigned qualified crew.' },
+  { acronym: 'OTP', term: 'On-Time Performance', category: 'Analytics', detail: 'Measure of flights operating to schedule, protected through early exception handling and crew recovery.' },
+  { acronym: 'Overtime', term: 'Overtime Hours', category: 'Analytics', detail: 'Crew work above planned or contractual thresholds, tracked in scenario and management reporting.' },
+  { acronym: 'PEN', term: 'Penang International Airport', category: 'Airport/Base', detail: 'Airport or base code used in crew base, sector and flight data.' },
+  { acronym: 'Planner', term: 'Crew Planner', category: 'Crew', detail: 'User role responsible for roster building, validation, publication and demand coverage.' },
+  { acronym: 'POST', term: 'HTTP POST Request', category: 'System', detail: 'API request method used to send action payloads to the Apps Script web app.' },
+  { acronym: 'Preference Grant', term: 'Preference Grant Rate', category: 'Analytics', detail: 'Percentage of crew preferences satisfied within roster stability and legality constraints.' },
+  { acronym: 'Published v3', term: 'Published Roster Version 3', category: 'Planning', detail: 'Example published roster state/version used in the roster editor filter strip.' },
+  { acronym: 'RBAC', term: 'Role-Based Access Control', category: 'Security', detail: 'Permission model that limits users to approved capabilities based on role and operational scope.' },
+  { acronym: 'RC', term: 'Recovery Case', category: 'Recovery', detail: 'Case identifier for disruptions requiring replacement crew, replanning, communication or escalation.' },
+  { acronym: 'Reserve Pool', term: 'Reserve Pool', category: 'Recovery', detail: 'Available standby or reserve crew who can be called up for short-notice coverage.' },
+  { acronym: 'Rest OK', term: 'Rest Compliant', category: 'Compliance', detail: 'Indicates a proposed crew replacement satisfies minimum rest requirements.' },
+  { acronym: 'Roster_Actual', term: 'Actual Roster Sheet', category: 'Backend', detail: 'Backend sheet or dataset containing operated roster outcomes after day-of-operation changes.' },
+  { acronym: 'Roster_Published', term: 'Published Roster Sheet', category: 'Backend', detail: 'Backend sheet containing the currently published roster used by operations.' },
+  { acronym: 'Route Qualification', term: 'Route Qualification', category: 'Compliance', detail: 'Eligibility requirement that crew are qualified or approved for a route, sector or airport.' },
   { acronym: 'SBY', term: 'Standby', category: 'Roster', detail: 'Roster code for crew held available for short-notice operational coverage.' },
+  { acronym: 'Scenario A/B', term: 'Scenario A/B Comparison', category: 'Planning', detail: 'Optimizer comparison of baseline and alternative rosters across cost, overtime, stability, preferences and risk.' },
+  { acronym: 'Sector', term: 'Flight Sector', category: 'Flight', detail: 'Origin-destination leg such as KUL-PEN or SZB-BKI used in demand and route qualification.' },
   { acronym: 'SEP', term: 'Safety and Emergency Procedures', category: 'Training', detail: 'Recurring safety training requirement tracked for crew qualification validity.' },
-  { acronym: 'STA', term: 'Scheduled Time of Arrival', category: 'Flight', detail: 'Published arrival time used in schedule and duty calculations.' },
-  { acronym: 'STD', term: 'Scheduled Time of Departure', category: 'Flight', detail: 'Published departure time used to derive check-in deadlines and duty timelines.' },
-  { acronym: 'SZB', term: 'Sultan Abdul Aziz Shah Airport', category: 'Airport/Base', detail: 'Airport/sector code used in flight demand records.' },
-  { acronym: 'TRN', term: 'Training', category: 'Roster', detail: 'Roster code for a required training duty, simulator event or line check.' },
-  { acronym: 'Wi-Fi', term: 'Wireless Network Validation', category: 'Operations', detail: 'Optional check-in evidence confirming the crew member used an approved network at a reporting point.' }
+  { acronym: 'SLA', term: 'Service Level Agreement', category: 'Operations', detail: 'Target handling time for exceptions such as late check-ins, no-shows, recovery cases and support queues.' },
+  { acronym: 'Soft Warning', term: 'Soft Warning', category: 'Compliance', detail: 'Rule alert requiring review but not always blocking publication when justified.' },
+  { acronym: 'STA', term: 'Scheduled Time of Arrival', category: 'Flight', detail: 'Published arrival time used in schedule, duty and disruption calculations.' },
+  { acronym: 'STD', term: 'Scheduled Time of Departure', category: 'Flight', detail: 'Published departure time used to derive check-in deadlines, duty timelines and flight demand.' },
+  { acronym: 'SZB', term: 'Sultan Abdul Aziz Shah Airport', category: 'Airport/Base', detail: 'Airport or sector code used in flight demand and route context.' },
+  { acronym: 'TRN', term: 'Training', category: 'Roster', detail: 'Roster code for required training duty, simulator event, recurrent course or line check.' },
+  { acronym: 'Trigger', term: 'Scheduled Trigger', category: 'Backend', detail: 'Automated Apps Script job used for sync, backup, retry, alerting or maintenance tasks.' },
+  { acronym: 'Unassigned Trip', term: 'Unassigned Trip', category: 'Planning', detail: 'Scheduled duty or flight with missing crew assignment after roster build or recovery.' },
+  { acronym: 'URL', term: 'Uniform Resource Locator', category: 'System', detail: 'Web address for the Apps Script /exec endpoint or local Vite development server.' },
+  { acronym: 'Utilization', term: 'Crew Utilization', category: 'Analytics', detail: 'Measure of planned or actual crew usage by rank, fleet, base or period.' },
+  { acronym: 'Vite', term: 'Vite Frontend Tooling', category: 'System', detail: 'Development and build tool used to run and bundle the React web application.' },
+  { acronym: 'Webhook', term: 'Webhook Endpoint', category: 'Backend', detail: 'HTTP endpoint receiving ACMS actions such as roster retrieval, check-in posting, absence updates and notifications.' },
+  { acronym: 'Wi-Fi', term: 'Wireless Network Validation', category: 'Operations', detail: 'Optional check-in evidence confirming an approved reporting-point network was used.' },
+  { acronym: 'W01-W32', term: 'Screen Identifier Range', category: 'System', detail: 'Blueprint screen IDs used to label ACMS modules from command center through glossary.' }
 ];
 
 function glossaryAnswer(question) {
@@ -87,7 +129,7 @@ function glossaryAnswer(question) {
   const tokens = text.split(/\W+/).filter(Boolean);
   const fuzzy = glossaryTerms.filter(item => tokens.some(token => [item.acronym, item.term, item.category, item.detail].join(' ').toLowerCase().includes(token)));
   if (fuzzy.length) return `I found related glossary entries:\n\n${fuzzy.slice(0, 4).map(item => `• ${item.acronym} — ${item.term}: ${item.detail}`).join('\n')}`;
-  return 'I could not find a direct glossary match. Try an acronym such as FDP, RBAC, OCC, SBY, MC, STD or KPI.';
+  return 'I could not find a direct glossary match. Try an acronym such as FB, FDP, RBAC, OCC, SBY, MC, STD or KPI.';
 }
 
 function toneClass(tone) { return tone === 'risk' ? 'risk' : tone === 'warn' ? 'warn' : tone === 'ok' ? 'ok' : 'info'; }
@@ -173,7 +215,7 @@ function Glossary() {
     <div className="filters glossaryFilters">{categories.map(item => <button key={item} className={category === item ? 'selected' : ''} onClick={() => setCategory(item)}>{item}</button>)}</div>
     <div className="grid two glossaryLayout">
       <div className="glossaryGrid">{filtered.map(item => <article className="card glossaryTerm" key={item.acronym}><span>{item.category}</span><h3>{item.acronym}</h3><b>{item.term}</b><p>{item.detail}</p></article>)}</div>
-      <div className="card copilot glossaryCopilot"><div className="cardTitle">Glossary AI Copilot</div><div className="searchbar"><Bot size={18}/><input value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Ask what an acronym means..."/><button onClick={askGlossary}>Ask</button></div><div className="answer">{answer}</div><div className="quickQs">{['What is RBAC?','Explain OCC','Show roster codes','What does STD mean?'].map(x=><button key={x} onClick={()=>setQuestion(x)}>{x}</button>)}</div></div>
+      <div className="card copilot glossaryCopilot"><div className="cardTitle">Glossary AI Copilot</div><div className="searchbar"><Bot size={18}/><input value={question} onChange={e=>setQuestion(e.target.value)} placeholder="Ask what an acronym means..."/><button onClick={askGlossary}>Ask</button></div><div className="answer">{answer}</div><div className="quickQs">{['What does FB mean?','What is RBAC?','Show roster codes','What does STD mean?'].map(x=><button key={x} onClick={()=>setQuestion(x)}>{x}</button>)}</div></div>
     </div>
   </>;
 }
