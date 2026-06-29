@@ -24,7 +24,7 @@ export const juneOpsData = Array.from({ length: 30 }, (_, dayIndex) => {
       flight,
       sector: route,
       std: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
-      sta: `${String((hour + 1 + (i % 2)).padStart(2, '0'))}:${String((minute + 18) % 60).padStart(2, '0')}`,
+      sta: `${String(hour + 1 + (i % 2)).padStart(2, '0')}:${String((minute + 18) % 60).padStart(2, '0')}`,
       aircraft: aircraft[(dayIndex + i) % aircraft.length],
       need: aircraft[(dayIndex + i) % aircraft.length] === 'B737' ? 'CPT/FO/4CC' : 'CPT/FO/2CC',
       status: statuses[(dayIndex + i * 2) % statuses.length],
