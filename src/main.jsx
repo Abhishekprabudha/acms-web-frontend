@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Activity, BookOpen, Bot, CalendarDays, CheckCircle2, ClipboardCheck, Database, Download, FileText, Gauge, Menu, Plane, Search, Settings, ShieldCheck, Users, Zap } from 'lucide-react';
+import malaysiaAircraft from './assets/malaysia-airlines-aircraft.svg';
 import { getOpsRange, mockData } from './mockData.js';
 import { callAcms, getApiUrl, setApiUrl } from './api.js';
 import './styles.css';
@@ -200,23 +201,8 @@ function LoginPage({ onLogin }) {
     <section className="loginHero" aria-label="ACMS secure login">
       <div className="loginVisual">
         <div className="brand loginBrand"><div className="brandMark">A</div><div><b>ACMS</b><span>AIONOS Crew Ops OS</span></div></div>
-        <div className="malaysiaAirlineGraphic" aria-label="Malaysia Airlines inspired aircraft travel graphic">
-          <div className="skyGlow"/>
-          <div className="mhEmblem" aria-hidden="true"><span/>MH</div>
-          <div className="aircraftScene">
-            <span className="cloud cloudOne"/>
-            <span className="cloud cloudTwo"/>
-            <span className="flightTrail trailOne"/>
-            <span className="flightTrail trailTwo"/>
-            <div className="aircraftBody">
-              <span className="tailFin"/>
-              <span className="wing wingTop"/>
-              <span className="wing wingBottom"/>
-              <span className="nose"/>
-              <span className="windowStrip"><i/><i/><i/><i/><i/></span>
-              <b>Malaysia Airlines</b>
-            </div>
-          </div>
+        <div className="malaysiaAirlineGraphic" aria-label="Malaysia Airlines aircraft at the airport">
+          <img src={malaysiaAircraft} alt="Malaysia Airlines aircraft parked on an airport apron" />
           <div className="routeBadge"><Plane size={16}/><span>KUL Hub · Malaysian Hospitality</span></div>
         </div>
         <div className="radarCard">
