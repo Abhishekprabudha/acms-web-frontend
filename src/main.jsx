@@ -200,6 +200,19 @@ function LoginPage({ onLogin }) {
     <section className="loginHero" aria-label="ACMS secure login">
       <div className="loginVisual">
         <div className="brand loginBrand"><div className="brandMark">A</div><div><b>ACMS</b><span>AIONOS Crew Ops OS</span></div></div>
+        <div className="aiCrewGraphic" aria-label="AI-native crew management intelligence graphic">
+          <div className="aiCrewCore">
+            <Bot size={34}/>
+            <span>AI</span>
+          </div>
+          <div className="crewNode pilotNode"><Plane size={18}/><b>Crew</b></div>
+          <div className="crewNode legalityNode"><ShieldCheck size={18}/><b>Legal</b></div>
+          <div className="crewNode recoveryNode"><Zap size={18}/><b>Recover</b></div>
+          <div className="crewNode rosterNode"><CalendarDays size={18}/><b>Roster</b></div>
+          <span className="signalPath pathOne"/>
+          <span className="signalPath pathTwo"/>
+          <span className="signalPath pathThree"/>
+        </div>
         <div className="radarCard">
           <div className="radarOrbit"><span/><span/><span/></div>
           <div><strong>Live crew command</strong><small>Roster, legality, recovery and OCC intelligence unified after sign-in.</small></div>
