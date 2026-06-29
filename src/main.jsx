@@ -227,7 +227,7 @@ function LoginPage({ onLogin }) {
 
 function FeatureStrip({features}) { return <section className="featureStrip">{features.map((f, i) => <div className="feature" key={f}><span>{String(i+1).padStart(2,'0')}</span>{f}</div>)}</section>; }
 
-function Kpis({items = mockData.kpis, onSelect}) { return <div className="kpis">{items.map(k => <button className={`card kpi ${toneClass(k.tone)} ${onSelect ? 'clickable' : ''}`} key={k.label} onClick={() => onSelect?.(k)}><span>{k.label}</span><strong>{k.value}</strong><small>{k.note}</small></button>)}</div>; }
+function Kpis({items = mockData.kpis, onSelect}) { return <div className="kpis">{items.map(k => <button className={`card kpi ${toneClass(k.tone)} ${onSelect ? 'clickable' : ''} ${k.selected ? 'selected' : ''}`} key={k.label} onClick={() => onSelect?.(k)}><span>{k.label}</span><strong>{k.value}</strong><small>{k.note}</small></button>)}</div>; }
 
 const duties = ['FB','SBY','TRN','OFF','LVE','FB','SBY','TRN','OFF','FB','SBY','FB'];
 function Gantt({title='Live Operations Timeline', rows=12, rowLabels, actions}) {
@@ -325,7 +325,44 @@ function Roster() {
     <div className="grid two"><Table title="Unassigned Trips" columns={['flight','sector','need','status']} rows={visibleOpenTrips} actions={!viewAll && <button className="viewAllBtn" onClick={viewAllRosterRecords}>View All</button>}/><Table title="Rotation Details" columns={['crewId','rank','base','fleet','status','training']} rows={visibleRosterCrew} actions={!viewAll && <button className="viewAllBtn" onClick={viewAllRosterRecords}>View All</button>}/></div>
   </>;
 }
-function Demand() { return <><Kpis items={[{label:'Schedule Rows',value:'4,620',note:'next 90 days',tone:'info'},{label:'Demand Gaps',value:'11',note:'needs crew mapping',tone:'warn'},{label:'Aircraft Swaps',value:'7',note:'today',tone:'risk'},{label:'Import Health',value:'OK',note:'last 9 min',tone:'ok'}]}/><Table title="Flight Demand Packages" columns={['flight','sector','std','sta','aircraft','need','status']} rows={mockData.flights}/></>; }
+function Demand() {
+  const [startDate,setStartDate]=useState('2026-06-01');
+  const [endDate,setEndDate]=useState('2026-06-30');
+  const [selectedKpi,setSelectedKpi]=useState('Schedule Rows');
+  const range=getOpsRange(startDate,endDate);
+  const demandGapFlights = range.flights.filter(flight => ['Missing CC','Open trip'].includes(flight.status));
+  const aircraftSwapRecords = range.exceptions
+    .filter(exception => exception.type === 'Aircraft swap')
+    .map(exception => {
+      const flight = range.flights.find(item => item.flight === exception.flight) || {};
+      return { ...exception, sector: flight.sector, aircraft: flight.aircraft, std: flight.std, status: flight.status || 'Swap review' };
+    });
+  const importHealthRows = range.days.map(day => ({
+    date: day.date,
+    scheduleRows: day.flights.length,
+    demandGaps: day.flights.filter(flight => ['Missing CC','Open trip'].includes(flight.status)).length,
+    aircraftSwaps: day.exceptions.filter(exception => exception.type === 'Aircraft swap').length,
+    importStatus: day.exceptionCount > 20 ? 'Review' : 'OK'
+  }));
+  const items=[
+    {label:'Schedule Rows',value:range.flights.length,note:`${range.days.length} June day(s) selected`,tone:'info'},
+    {label:'Demand Gaps',value:demandGapFlights.length,note:'missing crew mapping',tone:'warn'},
+    {label:'Aircraft Swaps',value:aircraftSwapRecords.length,note:'selected range',tone:'risk'},
+    {label:'Import Health',value:importHealthRows.every(row => row.importStatus === 'OK') ? 'OK' : 'Review',note:'June schedule sync',tone:importHealthRows.every(row => row.importStatus === 'OK') ? 'ok' : 'warn'}
+  ];
+  const tableConfigs={
+    'Schedule Rows': { title:'Complete Flight Demand Packages', columns:['date','flight','sector','std','sta','aircraft','need','status'], rows:range.flights },
+    'Demand Gaps': { title:'Complete Demand Gap Records', columns:['date','flight','sector','std','sta','aircraft','need','status'], rows:demandGapFlights },
+    'Aircraft Swaps': { title:'Complete Aircraft Swap Records', columns:['date','type','flight','sector','std','aircraft','status','sla','priority','owner'], rows:aircraftSwapRecords },
+    'Import Health': { title:'Complete Import Health by June Date', columns:['date','scheduleRows','demandGaps','aircraftSwaps','importStatus'], rows:importHealthRows }
+  };
+  const cfg=tableConfigs[selectedKpi];
+  return <>
+    <DateRangePicker startDate={startDate} endDate={endDate} setStartDate={setStartDate} setEndDate={setEndDate}/>
+    <Kpis items={items.map(item => ({...item, selected: item.label === selectedKpi}))} onSelect={k=>setSelectedKpi(k.label)}/>
+    <Table title={cfg.title} columns={cfg.columns} rows={cfg.rows} actions={<button className="downloadBtn" onClick={()=>exportCsv(`demand-${selectedKpi.toLowerCase().replaceAll(' ','-')}-${startDate}-to-${endDate}.csv`, cfg.rows)}><Download size={15}/> Download CSV</button>}/>
+  </>;
+}
 function Crew() { return <><Kpis items={[{label:'Active Crew',value:'1,284',note:'rank/base/fleet mapped',tone:'info'},{label:'Expiring Docs',value:'42',note:'within 30 days',tone:'warn'},{label:'Qualified Pool',value:'91%',note:'eligible for schedule',tone:'ok'},{label:'Data Gaps',value:'23',note:'maker-checker queue',tone:'risk'}]}/><div className="grid two"><Table title="Crew Master 360" columns={['crewId','name','rank','base','fleet','status']} rows={mockData.crew}/><Gantt title="Qualification & Validity Timeline" rows={8}/></div></>; }
 function Ops() { return <><Kpis items={[{label:'Due Check-ins',value:'84',note:'next 4h',tone:'info'},{label:'Late',value:'4',note:'escalated',tone:'warn'},{label:'No-show Risk',value:'2',note:'recovery ready',tone:'risk'},{label:'MC Review',value:'9',note:'pending OCC',tone:'info'}]}/><div className="grid two"><Table title="Check-In Monitor" columns={['crew','flight','status','sla']} rows={[{crew:'CPT-204',flight:'FY3124',status:'Late',sla:'12m'},{crew:'FO-872',flight:'FY4020',status:'Pending',sla:'28m'},{crew:'CC-519',flight:'FY2176',status:'Checked-in',sla:'OK'}]}/><Table title="Absence Desk" columns={['caseId','issue','flight','priority','status']} rows={mockData.recoveryCases}/></div></>; }
 function Recovery() { return <><Kpis items={[{label:'Disruptions',value:'8',note:'active cases',tone:'risk'},{label:'Reserve Pool',value:'37',note:'available now',tone:'ok'},{label:'Best Option ETA',value:'14m',note:'legal replacement',tone:'info'},{label:'OTP Protected',value:'5',note:'flights saved',tone:'info'}]}/><div className="grid two"><Table title="Recovery Cases" columns={['caseId','issue','flight','priority','status']} rows={mockData.recoveryCases}/><Table title="Ranked Recommendations" columns={['crew','why','score']} rows={[{crew:'CPT Amir',why:'same base, rest OK',score:96},{crew:'CPT Shafiq',why:'reserve, fleet OK',score:91},{crew:'CPT Nadia',why:'legal but low rest',score:79}]}/></div><Gantt title="Before / After Recovery Timeline" rows={4}/></>; }
