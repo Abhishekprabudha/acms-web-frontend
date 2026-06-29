@@ -230,9 +230,10 @@ function FeatureStrip({features}) { return <section className="featureStrip">{fe
 function Kpis({items = mockData.kpis, onSelect}) { return <div className="kpis">{items.map(k => <button className={`card kpi ${toneClass(k.tone)} ${onSelect ? 'clickable' : ''}`} key={k.label} onClick={() => onSelect?.(k)}><span>{k.label}</span><strong>{k.value}</strong><small>{k.note}</small></button>)}</div>; }
 
 const duties = ['FB','SBY','TRN','OFF','LVE','FB','SBY','TRN','OFF','FB','SBY','FB'];
-function Gantt({title='Live Operations Timeline', rows=12}) {
+function Gantt({title='Live Operations Timeline', rows=12, rowLabels, actions}) {
   const days = Array.from({length:14}, (_,i)=>String(i+1).padStart(2,'0'));
-  return <div className="card ganttCard"><div className="cardTitle">{title}</div><div className="gantt"><div className="ganttHead"><span></span>{days.map(d=><b key={d}>D{d}</b>)}</div>{Array.from({length:rows},(_,r)=> <div className="ganttRow" key={r}><label>Crew {100+r}</label>{days.map((d,c)=> { const show = (r+c)%4===0 || (r*c)%9===0; const duty=duties[(r+c)%duties.length]; return <span className={show ? `tile ${duty.toLowerCase()}` : 'slot'} key={d}>{show ? duty : ''}{show && (r+c)%11===0 ? <i/>: null}</span>})}</div>)}</div></div>;
+  const displayRows = rowLabels?.length || rows;
+  return <div className="card ganttCard"><div className="cardHeader"><div className="cardTitle">{title}</div>{actions}</div><div className="gantt"><div className="ganttHead"><span></span>{days.map(d=><b key={d}>D{d}</b>)}</div>{Array.from({length:displayRows},(_,r)=> <div className="ganttRow" key={rowLabels?.[r] || r}><label>{rowLabels?.[r] || `Crew ${100+r}`}</label>{days.map((d,c)=> { const show = (r+c)%4===0 || (r*c)%9===0; const duty=duties[(r+c)%duties.length]; return <span className={show ? `tile ${duty.toLowerCase()}` : 'slot'} key={d}>{show ? duty : ''}{show && (r+c)%11===0 ? <i/>: null}</span>})}</div>)}</div></div>;
 }
 
 function Table({title, columns, rows, actions}) { return <div className="card tableCard"><div className="cardHeader"><div className="cardTitle">{title}</div>{actions}</div><table><thead><tr>{columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={i}>{columns.map(c=><td key={c}>{row[c] ?? row[c.toLowerCase()] ?? ''}</td>)}</tr>)}</tbody></table></div>; }
@@ -264,6 +265,7 @@ function Roster() {
   const [crewStatuses,setCrewStatuses]=useState(() => Object.fromEntries(mockData.crew.map(crew => [crew.crewId, crew.status])));
   const [validation,setValidation]=useState('Not validated');
   const [publishState,setPublishState]=useState('Roster has draft edits');
+  const [viewAll,setViewAll]=useState(false);
 
   const rosterCrew = mockData.crew
     .map(crew => ({ ...crew, status: crewStatuses[crew.crewId] || crew.status }))
@@ -271,6 +273,17 @@ function Roster() {
     .filter(crew => base === 'All' || crew.base === base)
     .filter(crew => rank === 'All' || crew.rank === rank);
   const openTrips = mockData.flights.filter(flight => exceptionsOn || !['Missing CC','Delay risk','Open trip'].includes(flight.status));
+  const visibleRosterCrew = viewAll ? rosterCrew : rosterCrew.slice(0, 3);
+  const visibleOpenTrips = viewAll ? openTrips : openTrips.slice(0, 3);
+  const rosterGanttLabels = visibleRosterCrew.map(crew => crew.crewId);
+
+  function viewAllRosterRecords() {
+    setFleet('All');
+    setBase('All');
+    setRank('All');
+    setExceptionsOn(true);
+    setViewAll(true);
+  }
 
   function applyCrewStatus() {
     setCrewStatuses(current => ({ ...current, [selectedCrew]: newStatus }));
@@ -299,6 +312,7 @@ function Roster() {
       <button className="selected warn" onClick={()=>setVersion(version === 'Published v3' ? 'Published v4' : 'Published v3')}>{version}</button>
       <button onClick={validateRoster}>Validate</button>
       <button onClick={publishRoster}>Publish</button>
+      <button className={viewAll ? 'selected' : ''} onClick={viewAllRosterRecords}>View All</button>
     </div>
     <div className="card rosterControl">
       <div><strong>Crew status update</strong><small>Add or update crew availability before validation and publish.</small></div>
@@ -307,8 +321,8 @@ function Roster() {
       <button onClick={applyCrewStatus}>Add status</button>
     </div>
     <Kpis items={[{label:'Roster Filter',value:`${fleet}/${base}/${rank}`,note:`${rosterCrew.length} crew rows visible`,tone:'info'},{label:'Exception Mode',value:exceptionsOn ? 'ON' : 'OFF',note:`${openTrips.length} trips in scope`,tone:exceptionsOn ? 'risk' : 'ok'},{label:'Validation',value:validation.includes('Validated') || validation.includes('Published') ? 'Ready' : 'Draft',note:validation,tone:validation.includes('required') ? 'warn' : 'ok'},{label:'Publish State',value:version.replace('Published ',''),note:publishState,tone:'info'}]}/>
-    <Gantt title="Modern Roster Editor · Multi-window Gantt" rows={14}/>
-    <div className="grid two"><Table title="Unassigned Trips" columns={['flight','sector','need','status']} rows={openTrips}/><Table title="Rotation Details" columns={['crewId','rank','base','fleet','status','training']} rows={rosterCrew}/></div>
+    <Gantt title="Modern Roster Editor · Multi-window Gantt" rowLabels={rosterGanttLabels} actions={!viewAll && <button className="viewAllBtn" onClick={viewAllRosterRecords}>View All</button>}/>
+    <div className="grid two"><Table title="Unassigned Trips" columns={['flight','sector','need','status']} rows={visibleOpenTrips} actions={!viewAll && <button className="viewAllBtn" onClick={viewAllRosterRecords}>View All</button>}/><Table title="Rotation Details" columns={['crewId','rank','base','fleet','status','training']} rows={visibleRosterCrew} actions={!viewAll && <button className="viewAllBtn" onClick={viewAllRosterRecords}>View All</button>}/></div>
   </>;
 }
 function Demand() { return <><Kpis items={[{label:'Schedule Rows',value:'4,620',note:'next 90 days',tone:'info'},{label:'Demand Gaps',value:'11',note:'needs crew mapping',tone:'warn'},{label:'Aircraft Swaps',value:'7',note:'today',tone:'risk'},{label:'Import Health',value:'OK',note:'last 9 min',tone:'ok'}]}/><Table title="Flight Demand Packages" columns={['flight','sector','std','sta','aircraft','need','status']} rows={mockData.flights}/></>; }
