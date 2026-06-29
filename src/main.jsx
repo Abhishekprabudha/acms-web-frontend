@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Activity, AlertTriangle, BookOpen, Bot, CalendarDays, CheckCircle2, ClipboardCheck, Clock, Database, FileText, Gauge, Menu, Plane, RefreshCcw, Search, Settings, ShieldCheck, Users, Zap } from 'lucide-react';
-import { mockData } from './mockData.js';
+import { Activity, BookOpen, Bot, CalendarDays, CheckCircle2, ClipboardCheck, Database, Download, FileText, Gauge, Menu, Plane, Search, Settings, ShieldCheck, Users, Zap } from 'lucide-react';
+import { getOpsRange, mockData } from './mockData.js';
 import { callAcms, getApiUrl, setApiUrl } from './api.js';
 import './styles.css';
 
@@ -23,6 +23,10 @@ const nav = [
 
 const screenMeta = {
   command: { id: 'W01', title: 'Operations Command Center', subtitle: 'Planner / OCC / Admin workspace', features: ['Live operational readiness dashboard', 'KPI cards for flights, crewed percentage, exceptions and check-ins', 'Exception drill-down and AI daily brief', 'Connected to CheckIns, Recovery_Cases and Roster_Actual'] },
+  flightsDetail: { id: 'W01-A', title: 'Flights Today Detail', subtitle: 'Date-filtered flight coverage, crew demand and status export', features: ['Flight-by-flight demand coverage', 'Crewing status and gate readiness', 'CSV download for selected date range', 'Designed for OCC flight dispatch reviews'] },
+  exceptionsDetail: { id: 'W01-B', title: 'Open Exceptions Detail', subtitle: 'Operational exception queue for selected June dates', features: ['Priority, SLA and owner triage', 'Flight and crew-linked exceptions', 'Downloadable exception register', 'Recovery handoff ready'] },
+  checkinsDetail: { id: 'W01-C', title: 'Late Check-ins Detail', subtitle: 'Crew attendance and evidence monitoring by day or range', features: ['Late, pending and checked-in evidence', 'Crew report versus actual timing', 'CSV export for attendance audit', 'Ops escalation focused'] },
+  stabilityDetail: { id: 'W01-D', title: 'Roster Stability Detail', subtitle: 'Roster change health and stability drivers across June', features: ['Daily stability movement', 'Change pressure and exception mix', 'Downloadable stability dataset', 'Planner-ready roster quality insights'] },
   roster: { id: 'W02', title: 'Modern Roster Editor', subtitle: 'Monthly multi-window Gantt workspace', features: ['Crew rows, duty tiles and roster state toggle', 'Color-coded duty, standby, training, leave and exceptions', 'Manual edit with rule validation before save', 'Planned, published and actual roster comparison'] },
   demand: { id: 'W03', title: 'Flight Demand Board', subtitle: 'Schedule demand and crew requirement control', features: ['Flight schedule import', 'Aircraft type and crew requirement mapping', 'Schedule deltas and missing demand flags', 'Export to roster build'] },
   crew: { id: 'W06', title: 'Crew Profile & Qualification 360', subtitle: 'Eligibility, documents and roster history', features: ['Eligibility snapshot across rank, base, fleet and route', 'License, medical, training and recency timeline', 'Document links and maker-checker updates', 'Data quality exceptions'] },
@@ -150,7 +154,7 @@ function Shell() {
 
   function saveUrl() { setApiUrl(apiUrl); ping(); }
 
-  const meta = screenMeta[active];
+  const meta = screenMeta[active] || screenMeta.command;
   const Icon = nav.find(n => n.key === active)?.icon || Gauge;
 
   return <div className="app">
@@ -166,14 +170,14 @@ function Shell() {
         <div className="topActions"><button className="ghost" onClick={() => setActive('copilot')}><Bot size={16}/> Ask AI Copilot</button><button className="sync" onClick={ping}>{sync}</button><div className="avatar">AP</div></div>
       </header>
       <FeatureStrip features={meta.features}/>
-      <Screen active={active} apiUrl={apiUrl} setApiUrlState={setApiUrlState} saveUrl={saveUrl}/>
+      <Screen active={active} setActive={setActive} apiUrl={apiUrl} setApiUrlState={setApiUrlState} saveUrl={saveUrl}/>
     </main>
   </div>;
 }
 
 function FeatureStrip({features}) { return <section className="featureStrip">{features.map((f, i) => <div className="feature" key={f}><span>{String(i+1).padStart(2,'0')}</span>{f}</div>)}</section>; }
 
-function Kpis({items = mockData.kpis}) { return <div className="kpis">{items.map(k => <div className={`card kpi ${toneClass(k.tone)}`} key={k.label}><span>{k.label}</span><strong>{k.value}</strong><small>{k.note}</small></div>)}</div>; }
+function Kpis({items = mockData.kpis, onSelect}) { return <div className="kpis">{items.map(k => <button className={`card kpi ${toneClass(k.tone)} ${onSelect ? 'clickable' : ''}`} key={k.label} onClick={() => onSelect?.(k)}><span>{k.label}</span><strong>{k.value}</strong><small>{k.note}</small></button>)}</div>; }
 
 const duties = ['FB','SBY','TRN','OFF','LVE','FB','SBY','TRN','OFF','FB','SBY','FB'];
 function Gantt({title='Live Operations Timeline', rows=12}) {
@@ -181,9 +185,23 @@ function Gantt({title='Live Operations Timeline', rows=12}) {
   return <div className="card ganttCard"><div className="cardTitle">{title}</div><div className="gantt"><div className="ganttHead"><span></span>{days.map(d=><b key={d}>D{d}</b>)}</div>{Array.from({length:rows},(_,r)=> <div className="ganttRow" key={r}><label>Crew {100+r}</label>{days.map((d,c)=> { const show = (r+c)%4===0 || (r*c)%9===0; const duty=duties[(r+c)%duties.length]; return <span className={show ? `tile ${duty.toLowerCase()}` : 'slot'} key={d}>{show ? duty : ''}{show && (r+c)%11===0 ? <i/>: null}</span>})}</div>)}</div></div>;
 }
 
-function Table({title, columns, rows}) { return <div className="card tableCard"><div className="cardTitle">{title}</div><table><thead><tr>{columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={i}>{columns.map(c=><td key={c}>{row[c] ?? row[c.toLowerCase()] ?? ''}</td>)}</tr>)}</tbody></table></div>; }
+function Table({title, columns, rows, actions}) { return <div className="card tableCard"><div className="cardHeader"><div className="cardTitle">{title}</div>{actions}</div><table><thead><tr>{columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={i}>{columns.map(c=><td key={c}>{row[c] ?? row[c.toLowerCase()] ?? ''}</td>)}</tr>)}</tbody></table></div>; }
 
-function Command() { return <><Kpis/><div className="grid two"><Gantt/><Table title="Priority Exceptions" columns={['type','crew','sla','priority']} rows={mockData.exceptions}/><Table title="Flights Today" columns={['flight','sector','std','aircraft','status']} rows={mockData.flights}/><MiniChart title="Recovery Cycle Time" /></div></>; }
+function DateRangePicker({ startDate, endDate, setStartDate, setEndDate }) {
+  return <div className="datePanel card"><div><b>June operations calendar</b><span>Select one day or a group of days. Demo backend data is populated for every date in June 2026.</span></div><label>From<input type="date" min="2026-06-01" max="2026-06-30" value={startDate} onChange={e => setStartDate(e.target.value)}/></label><label>To<input type="date" min="2026-06-01" max="2026-06-30" value={endDate} onChange={e => setEndDate(e.target.value)}/></label></div>;
+}
+function exportCsv(filename, rows) {
+  if (!rows.length) return;
+  const columns = Object.keys(rows[0]);
+  const csv = [columns.join(','), ...rows.map(row => columns.map(col => `"${String(row[col] ?? '').replaceAll('"','""')}"`).join(','))].join('\n');
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+function Command({ setActive }) { const [startDate,setStartDate]=useState('2026-06-01'); const [endDate,setEndDate]=useState('2026-06-30'); const range=getOpsRange(startDate,endDate); const items=[{label:'Flights Today',value:range.flights.length,note:`${range.days.length} June day(s) selected`,tone:'ok',screen:'flightsDetail'},{label:'Open Exceptions',value:range.exceptions.filter(x=>x.priority!=='Low').length,note:'high / medium triage',tone:'risk',screen:'exceptionsDetail'},{label:'Late Check-ins',value:range.checkins.filter(x=>x.status==='Late').length,note:'auto-escalated',tone:'warn',screen:'checkinsDetail'},{label:'Roster Stability',value:`${range.avgStability}%`,note:'average selected range',tone:'info',screen:'stabilityDetail'}]; return <><DateRangePicker startDate={startDate} endDate={endDate} setStartDate={setStartDate} setEndDate={setEndDate}/><Kpis items={items} onSelect={k=>setActive(k.screen)}/><div className="grid two"><Gantt/><Table title="Priority Exceptions" columns={['date','type','crew','flight','sla','priority']} rows={range.exceptions.slice(0,10)}/><Table title="Flights in Selected Range" columns={['date','flight','sector','std','aircraft','status']} rows={range.flights.slice(0,10)}/><MiniChart title="Recovery Cycle Time" /></div></>; }
+function DetailScreen({ type }) { const [startDate,setStartDate]=useState('2026-06-01'); const [endDate,setEndDate]=useState('2026-06-30'); const range=getOpsRange(startDate,endDate); const configs={flightsDetail:{title:'Downloadable Flight Operations Register',cols:['date','flight','sector','std','sta','aircraft','need','status','gate','crewedPercent'],rows:range.flights,kpis:[{label:'Selected Flights',value:range.flights.length,note:'scheduled sectors',tone:'ok'},{label:'Open Trips',value:range.flights.filter(x=>x.status==='Open trip').length,note:'needs action',tone:'risk'},{label:'Delay Risks',value:range.flights.filter(x=>x.status==='Delay risk').length,note:'watchlist',tone:'warn'},{label:'Crewed Avg',value:'94%',note:'range estimate',tone:'info'}]},exceptionsDetail:{title:'Downloadable Exception Register',cols:['date','type','crew','flight','sla','priority','owner'],rows:range.exceptions,kpis:[{label:'All Exceptions',value:range.exceptions.length,note:'selected range',tone:'risk'},{label:'High Priority',value:range.exceptions.filter(x=>x.priority==='High').length,note:'OCC focus',tone:'risk'},{label:'Medium',value:range.exceptions.filter(x=>x.priority==='Med').length,note:'planner queue',tone:'warn'},{label:'SLA Owners',value:'4',note:'active desks',tone:'info'}]},checkinsDetail:{title:'Downloadable Check-in Audit',cols:['date','crew','flight','report','actual','status','evidence'],rows:range.checkins,kpis:[{label:'Check-ins',value:range.checkins.length,note:'selected range',tone:'info'},{label:'Late',value:range.checkins.filter(x=>x.status==='Late').length,note:'escalated',tone:'warn'},{label:'Pending',value:range.checkins.filter(x=>x.status==='Pending').length,note:'monitor',tone:'risk'},{label:'Evidence OK',value:range.checkins.filter(x=>x.evidence.includes('OK')).length,note:'validated',tone:'ok'}]},stabilityDetail:{title:'Downloadable Roster Stability Dataset',cols:['date','flightCount','exceptionCount','lateCheckIns','stability'],rows:range.days,kpis:[{label:'Average Stability',value:`${range.avgStability}%`,note:'selected range',tone:'info'},{label:'Best Day',value:`${Math.max(...range.days.map(x=>x.stability))}%`,note:'June peak',tone:'ok'},{label:'Change Load',value:range.exceptions.length,note:'exception pressure',tone:'warn'},{label:'Late Impact',value:range.checkins.filter(x=>x.status==='Late').length,note:'attendance pressure',tone:'risk'}]}}; const cfg=configs[type]; return <><DateRangePicker startDate={startDate} endDate={endDate} setStartDate={setStartDate} setEndDate={setEndDate}/><Kpis items={cfg.kpis}/><div className="grid two"><Table title={cfg.title} columns={cfg.cols} rows={cfg.rows} actions={<button className="downloadBtn" onClick={()=>exportCsv(`${type}-${startDate}-to-${endDate}.csv`, cfg.rows)}><Download size={15}/> Download CSV</button>}/><MiniChart title="Selected Range Trend" /></div></>; }
 
 function Roster() { return <><div className="filters"><span>Fleet ATR</span><span>Base KUL</span><span>Rank All</span><span>Exceptions ON</span><span>Published v3</span><button>Validate</button><button>Publish</button></div><Gantt title="Modern Roster Editor · Multi-window Gantt" rows={14}/><div className="grid two"><Table title="Unassigned Trips" columns={['flight','sector','need','status']} rows={mockData.flights}/><Table title="Rotation Details" columns={['crew','rank','status','training']} rows={mockData.crew}/></div></>; }
 function Demand() { return <><Kpis items={[{label:'Schedule Rows',value:'4,620',note:'next 90 days',tone:'info'},{label:'Demand Gaps',value:'11',note:'needs crew mapping',tone:'warn'},{label:'Aircraft Swaps',value:'7',note:'today',tone:'risk'},{label:'Import Health',value:'OK',note:'last 9 min',tone:'ok'}]}/><Table title="Flight Demand Packages" columns={['flight','sector','std','sta','aircraft','need','status']} rows={mockData.flights}/></>; }
@@ -223,6 +241,6 @@ function Glossary() {
 function Admin() { return <><div className="grid two"><Table title="Rule Configuration" columns={['parameter','value','type']} rows={[{parameter:'Min rest',value:'12h',type:'Hard'},{parameter:'Max FDP',value:'13h',type:'Hard'},{parameter:'Medical expiry alert',value:'90/60/30d',type:'Soft'},{parameter:'Geo check-in',value:'Enabled',type:'Control'}]}/><Table title="Users & RBAC" columns={['role','users','scope']} rows={[{role:'Crew',users:1284,scope:'Self service'},{role:'Planner',users:24,scope:'Roster build'},{role:'OCC',users:18,scope:'Ops control'},{role:'Admin',users:7,scope:'System'}]}/></div><div className="card checklist"><div className="cardTitle">System Health Checklist</div>{['Daily trigger installed','Backup scheduled','Webhook deployment active','Protected ranges enabled','Audit logging enabled'].map(x=><p key={x}><CheckCircle2 size={16}/>{x}</p>)}</div></>; }
 function MiniChart({title}) { const bars=[30,62,48,82,68,96,74]; return <div className="card chart"><div className="cardTitle">{title}</div><div className="bars">{bars.map((b,i)=><span key={i} style={{height:b+'%'}}><small>W{i+1}</small></span>)}</div></div>; }
 
-function Screen(props) { const m = { command:<Command/>, roster:<Roster/>, demand:<Demand/>, crew:<Crew/>, ops:<Ops/>, recovery:<Recovery/>, optimizer:<Optimizer/>, rules:<Rules/>, reports:<Reports/>, backend:<Backend {...props}/>, copilot:<Copilot/>, admin:<Admin/>, glossary:<Glossary/> }; return <section className="screen">{m[props.active]}</section>; }
+function Screen(props) { const m = { command:<Command setActive={props.setActive}/>, flightsDetail:<DetailScreen type="flightsDetail"/>, exceptionsDetail:<DetailScreen type="exceptionsDetail"/>, checkinsDetail:<DetailScreen type="checkinsDetail"/>, stabilityDetail:<DetailScreen type="stabilityDetail"/>, roster:<Roster/>, demand:<Demand/>, crew:<Crew/>, ops:<Ops/>, recovery:<Recovery/>, optimizer:<Optimizer/>, rules:<Rules/>, reports:<Reports/>, backend:<Backend {...props}/>, copilot:<Copilot/>, admin:<Admin/>, glossary:<Glossary/> }; return <section className="screen">{m[props.active]}</section>; }
 
 createRoot(document.getElementById('root')).render(<Shell />);
