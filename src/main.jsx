@@ -139,6 +139,7 @@ function glossaryAnswer(question) {
 function toneClass(tone) { return tone === 'risk' ? 'risk' : tone === 'warn' ? 'warn' : tone === 'ok' ? 'ok' : 'info'; }
 
 function Shell() {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => sessionStorage.getItem('acms-authenticated') === 'true');
   const [active, setActive] = useState('command');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [apiUrl, setApiUrlState] = useState(getApiUrl());
@@ -153,6 +154,10 @@ function Shell() {
   useEffect(() => { ping(); }, []);
 
   function saveUrl() { setApiUrl(apiUrl); ping(); }
+  function handleLogin() { sessionStorage.setItem('acms-authenticated', 'true'); setIsAuthenticated(true); }
+  function handleLogout() { sessionStorage.removeItem('acms-authenticated'); setIsAuthenticated(false); setActive('command'); }
+
+  if (!isAuthenticated) return <LoginPage onLogin={handleLogin}/>;
 
   const meta = screenMeta[active] || screenMeta.command;
   const Icon = nav.find(n => n.key === active)?.icon || Gauge;
@@ -167,12 +172,53 @@ function Shell() {
       <header className="topbar">
         <button className="iconBtn" onClick={() => setSidebarOpen(!sidebarOpen)}><Menu size={20}/></button>
         <div className="titleBlock"><div className="screenId"><Icon size={18}/>{meta.id}</div><h1>{meta.title}</h1><p>{meta.subtitle}</p></div>
-        <div className="topActions"><button className="ghost" onClick={() => setActive('copilot')}><Bot size={16}/> Ask AI Copilot</button><button className="sync" onClick={ping}>{sync}</button><div className="avatar">AP</div></div>
+        <div className="topActions"><button className="ghost" onClick={() => setActive('copilot')}><Bot size={16}/> Ask AI Copilot</button><button className="sync" onClick={ping}>{sync}</button><button className="ghost logoutBtn" onClick={handleLogout}>Sign out</button><div className="avatar">AI</div></div>
       </header>
       <FeatureStrip features={meta.features}/>
       <Screen active={active} setActive={setActive} apiUrl={apiUrl} setApiUrlState={setApiUrlState} saveUrl={saveUrl}/>
     </main>
   </div>;
+}
+
+
+function LoginPage({ onLogin }) {
+  const [userId, setUserId] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  function submitLogin(event) {
+    event.preventDefault();
+    if (userId.trim().toUpperCase() === 'AIONOS' && password === 'AIONOS123') {
+      setError('');
+      onLogin();
+      return;
+    }
+    setError('Invalid credentials. Use your assigned AIONOS access ID and password.');
+  }
+
+  return <main className="loginPage">
+    <section className="loginHero" aria-label="ACMS secure login">
+      <div className="loginVisual">
+        <div className="brand loginBrand"><div className="brandMark">A</div><div><b>ACMS</b><span>AIONOS Crew Ops OS</span></div></div>
+        <div className="radarCard">
+          <div className="radarOrbit"><span/><span/><span/></div>
+          <div><strong>Live crew command</strong><small>Roster, legality, recovery and OCC intelligence unified after sign-in.</small></div>
+        </div>
+        <div className="loginStats">
+          <span><b>98%</b> payroll ready</span><span><b>216</b> active users</span><span><b>4.8k</b> webhook calls</span>
+        </div>
+      </div>
+      <form className="loginCard" onSubmit={submitLogin}>
+        <span className="securePill"><ShieldCheck size={16}/> Secure AIONOS Gateway</span>
+        <h1>Welcome to ACMS</h1>
+        <p>Sign in to enter the Airline Crew Management System command center.</p>
+        <label>User ID<input value={userId} onChange={e => setUserId(e.target.value)} placeholder="AIONOS" autoComplete="username" autoFocus/></label>
+        <label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="AIONOS123" autoComplete="current-password"/></label>
+        {error ? <div className="loginError" role="alert">{error}</div> : <div className="loginHint">Demo access: User ID <b>AIONOS</b> · Password <b>AIONOS123</b></div>}
+        <button className="loginButton" type="submit">Enter ACMS Command Center</button>
+      </form>
+    </section>
+  </main>;
 }
 
 function FeatureStrip({features}) { return <section className="featureStrip">{features.map((f, i) => <div className="feature" key={f}><span>{String(i+1).padStart(2,'0')}</span>{f}</div>)}</section>; }
