@@ -203,7 +203,6 @@ function LoginPage({ onLogin }) {
         <div className="brand loginBrand"><div className="brandMark">A</div><div><b>ACMS</b><span>AIONOS Crew Ops OS</span></div></div>
         <div className="malaysiaAirlineGraphic" aria-label="Malaysia Airlines aircraft at the airport">
           <img src={malaysiaAircraft} alt="Malaysia Airlines aircraft parked on an airport apron" />
-          <div className="routeBadge"><Plane size={16}/><span>KUL Hub · Malaysian Hospitality</span></div>
         </div>
         <div className="radarCard">
           <div className="radarOrbit"><span/><span/><span/></div>
