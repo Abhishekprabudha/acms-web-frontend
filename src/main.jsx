@@ -253,7 +253,64 @@ function exportCsv(filename, rows) {
 function Command({ setActive }) { const [startDate,setStartDate]=useState('2026-06-01'); const [endDate,setEndDate]=useState('2026-06-30'); const range=getOpsRange(startDate,endDate); const items=[{label:'Flights Today',value:range.flights.length,note:`${range.days.length} June day(s) selected`,tone:'ok',screen:'flightsDetail'},{label:'Open Exceptions',value:range.exceptions.filter(x=>x.priority!=='Low').length,note:'high / medium triage',tone:'risk',screen:'exceptionsDetail'},{label:'Late Check-ins',value:range.checkins.filter(x=>x.status==='Late').length,note:'auto-escalated',tone:'warn',screen:'checkinsDetail'},{label:'Roster Stability',value:`${range.avgStability}%`,note:'average selected range',tone:'info',screen:'stabilityDetail'}]; return <><DateRangePicker startDate={startDate} endDate={endDate} setStartDate={setStartDate} setEndDate={setEndDate}/><Kpis items={items} onSelect={k=>setActive(k.screen)}/><div className="grid two"><Gantt/><Table title="Priority Exceptions" columns={['date','type','crew','flight','sla','priority']} rows={range.exceptions.slice(0,10)}/><Table title="Flights in Selected Range" columns={['date','flight','sector','std','aircraft','status']} rows={range.flights.slice(0,10)}/><MiniChart title="Recovery Cycle Time" /></div></>; }
 function DetailScreen({ type }) { const [startDate,setStartDate]=useState('2026-06-01'); const [endDate,setEndDate]=useState('2026-06-30'); const range=getOpsRange(startDate,endDate); const configs={flightsDetail:{title:'Downloadable Flight Operations Register',cols:['date','flight','sector','std','sta','aircraft','need','status','gate','crewedPercent'],rows:range.flights,kpis:[{label:'Selected Flights',value:range.flights.length,note:'scheduled sectors',tone:'ok'},{label:'Open Trips',value:range.flights.filter(x=>x.status==='Open trip').length,note:'needs action',tone:'risk'},{label:'Delay Risks',value:range.flights.filter(x=>x.status==='Delay risk').length,note:'watchlist',tone:'warn'},{label:'Crewed Avg',value:'94%',note:'range estimate',tone:'info'}]},exceptionsDetail:{title:'Downloadable Exception Register',cols:['date','type','crew','flight','sla','priority','owner'],rows:range.exceptions,kpis:[{label:'All Exceptions',value:range.exceptions.length,note:'selected range',tone:'risk'},{label:'High Priority',value:range.exceptions.filter(x=>x.priority==='High').length,note:'OCC focus',tone:'risk'},{label:'Medium',value:range.exceptions.filter(x=>x.priority==='Med').length,note:'planner queue',tone:'warn'},{label:'SLA Owners',value:'4',note:'active desks',tone:'info'}]},checkinsDetail:{title:'Downloadable Check-in Audit',cols:['date','crew','flight','report','actual','status','evidence'],rows:range.checkins,kpis:[{label:'Check-ins',value:range.checkins.length,note:'selected range',tone:'info'},{label:'Late',value:range.checkins.filter(x=>x.status==='Late').length,note:'escalated',tone:'warn'},{label:'Pending',value:range.checkins.filter(x=>x.status==='Pending').length,note:'monitor',tone:'risk'},{label:'Evidence OK',value:range.checkins.filter(x=>x.evidence.includes('OK')).length,note:'validated',tone:'ok'}]},stabilityDetail:{title:'Downloadable Roster Stability Dataset',cols:['date','flightCount','exceptionCount','lateCheckIns','stability'],rows:range.days,kpis:[{label:'Average Stability',value:`${range.avgStability}%`,note:'selected range',tone:'info'},{label:'Best Day',value:`${Math.max(...range.days.map(x=>x.stability))}%`,note:'June peak',tone:'ok'},{label:'Change Load',value:range.exceptions.length,note:'exception pressure',tone:'warn'},{label:'Late Impact',value:range.checkins.filter(x=>x.status==='Late').length,note:'attendance pressure',tone:'risk'}]}}; const cfg=configs[type]; return <><DateRangePicker startDate={startDate} endDate={endDate} setStartDate={setStartDate} setEndDate={setEndDate}/><Kpis items={cfg.kpis}/><div className="grid two"><Table title={cfg.title} columns={cfg.cols} rows={cfg.rows} actions={<button className="downloadBtn" onClick={()=>exportCsv(`${type}-${startDate}-to-${endDate}.csv`, cfg.rows)}><Download size={15}/> Download CSV</button>}/><MiniChart title="Selected Range Trend" /></div></>; }
 
-function Roster() { return <><div className="filters"><span>Fleet ATR</span><span>Base KUL</span><span>Rank All</span><span>Exceptions ON</span><span>Published v3</span><button>Validate</button><button>Publish</button></div><Gantt title="Modern Roster Editor · Multi-window Gantt" rows={14}/><div className="grid two"><Table title="Unassigned Trips" columns={['flight','sector','need','status']} rows={mockData.flights}/><Table title="Rotation Details" columns={['crew','rank','status','training']} rows={mockData.crew}/></div></>; }
+function Roster() {
+  const [fleet,setFleet]=useState('ATR');
+  const [base,setBase]=useState('KUL');
+  const [rank,setRank]=useState('All');
+  const [exceptionsOn,setExceptionsOn]=useState(true);
+  const [version,setVersion]=useState('Published v3');
+  const [newStatus,setNewStatus]=useState('Ready');
+  const [selectedCrew,setSelectedCrew]=useState(mockData.crew[0]?.crewId || '');
+  const [crewStatuses,setCrewStatuses]=useState(() => Object.fromEntries(mockData.crew.map(crew => [crew.crewId, crew.status])));
+  const [validation,setValidation]=useState('Not validated');
+  const [publishState,setPublishState]=useState('Roster has draft edits');
+
+  const rosterCrew = mockData.crew
+    .map(crew => ({ ...crew, status: crewStatuses[crew.crewId] || crew.status }))
+    .filter(crew => fleet === 'All' || crew.fleet === fleet)
+    .filter(crew => base === 'All' || crew.base === base)
+    .filter(crew => rank === 'All' || crew.rank === rank);
+  const openTrips = mockData.flights.filter(flight => exceptionsOn || !['Missing CC','Delay risk','Open trip'].includes(flight.status));
+
+  function applyCrewStatus() {
+    setCrewStatuses(current => ({ ...current, [selectedCrew]: newStatus }));
+    setValidation('Crew status changed · validation required');
+    setPublishState('Roster has unpublished status updates');
+  }
+
+  function validateRoster() {
+    const issueCount = exceptionsOn ? openTrips.filter(flight => ['Missing CC','Delay risk','Open trip'].includes(flight.status)).length : 0;
+    setValidation(issueCount ? `Validated with ${issueCount} visible exception(s)` : 'Validated · no visible exceptions');
+  }
+
+  function publishRoster() {
+    const nextVersion = version === 'Published v3' ? 'Published v4' : 'Published v3';
+    setVersion(nextVersion);
+    setPublishState(`${nextVersion} active · ${rosterCrew.length} crew row(s) published`);
+    setValidation('Published roster validated and locked');
+  }
+
+  return <>
+    <div className="filters rosterFilters">
+      <button className={fleet === 'ATR' ? 'selected' : ''} onClick={()=>setFleet(fleet === 'ATR' ? 'All' : 'ATR')}>Fleet {fleet}</button>
+      <button className={base === 'KUL' ? 'selected' : ''} onClick={()=>setBase(base === 'KUL' ? 'All' : 'KUL')}>Base {base}</button>
+      <button className={rank === 'All' ? 'selected' : ''} onClick={()=>setRank(rank === 'All' ? 'CPT' : rank === 'CPT' ? 'FO' : rank === 'FO' ? 'CC' : 'All')}>Rank {rank}</button>
+      <button className={exceptionsOn ? 'selected risk' : ''} onClick={()=>setExceptionsOn(!exceptionsOn)}>Exceptions {exceptionsOn ? 'ON' : 'OFF'}</button>
+      <button className="selected warn" onClick={()=>setVersion(version === 'Published v3' ? 'Published v4' : 'Published v3')}>{version}</button>
+      <button onClick={validateRoster}>Validate</button>
+      <button onClick={publishRoster}>Publish</button>
+    </div>
+    <div className="card rosterControl">
+      <div><strong>Crew status update</strong><small>Add or update crew availability before validation and publish.</small></div>
+      <select value={selectedCrew} onChange={e=>setSelectedCrew(e.target.value)}>{mockData.crew.map(crew => <option key={crew.crewId} value={crew.crewId}>{crew.crewId} · {crew.name}</option>)}</select>
+      <select value={newStatus} onChange={e=>setNewStatus(e.target.value)}>{['Ready','Training','Standby','Sick','Leave','Unavailable','Med expiring'].map(status => <option key={status}>{status}</option>)}</select>
+      <button onClick={applyCrewStatus}>Add status</button>
+    </div>
+    <Kpis items={[{label:'Roster Filter',value:`${fleet}/${base}/${rank}`,note:`${rosterCrew.length} crew rows visible`,tone:'info'},{label:'Exception Mode',value:exceptionsOn ? 'ON' : 'OFF',note:`${openTrips.length} trips in scope`,tone:exceptionsOn ? 'risk' : 'ok'},{label:'Validation',value:validation.includes('Validated') || validation.includes('Published') ? 'Ready' : 'Draft',note:validation,tone:validation.includes('required') ? 'warn' : 'ok'},{label:'Publish State',value:version.replace('Published ',''),note:publishState,tone:'info'}]}/>
+    <Gantt title="Modern Roster Editor · Multi-window Gantt" rows={14}/>
+    <div className="grid two"><Table title="Unassigned Trips" columns={['flight','sector','need','status']} rows={openTrips}/><Table title="Rotation Details" columns={['crewId','rank','base','fleet','status','training']} rows={rosterCrew}/></div>
+  </>;
+}
 function Demand() { return <><Kpis items={[{label:'Schedule Rows',value:'4,620',note:'next 90 days',tone:'info'},{label:'Demand Gaps',value:'11',note:'needs crew mapping',tone:'warn'},{label:'Aircraft Swaps',value:'7',note:'today',tone:'risk'},{label:'Import Health',value:'OK',note:'last 9 min',tone:'ok'}]}/><Table title="Flight Demand Packages" columns={['flight','sector','std','sta','aircraft','need','status']} rows={mockData.flights}/></>; }
 function Crew() { return <><Kpis items={[{label:'Active Crew',value:'1,284',note:'rank/base/fleet mapped',tone:'info'},{label:'Expiring Docs',value:'42',note:'within 30 days',tone:'warn'},{label:'Qualified Pool',value:'91%',note:'eligible for schedule',tone:'ok'},{label:'Data Gaps',value:'23',note:'maker-checker queue',tone:'risk'}]}/><div className="grid two"><Table title="Crew Master 360" columns={['crewId','name','rank','base','fleet','status']} rows={mockData.crew}/><Gantt title="Qualification & Validity Timeline" rows={8}/></div></>; }
 function Ops() { return <><Kpis items={[{label:'Due Check-ins',value:'84',note:'next 4h',tone:'info'},{label:'Late',value:'4',note:'escalated',tone:'warn'},{label:'No-show Risk',value:'2',note:'recovery ready',tone:'risk'},{label:'MC Review',value:'9',note:'pending OCC',tone:'info'}]}/><div className="grid two"><Table title="Check-In Monitor" columns={['crew','flight','status','sla']} rows={[{crew:'CPT-204',flight:'FY3124',status:'Late',sla:'12m'},{crew:'FO-872',flight:'FY4020',status:'Pending',sla:'28m'},{crew:'CC-519',flight:'FY2176',status:'Checked-in',sla:'OK'}]}/><Table title="Absence Desk" columns={['caseId','issue','flight','priority','status']} rows={mockData.recoveryCases}/></div></>; }
