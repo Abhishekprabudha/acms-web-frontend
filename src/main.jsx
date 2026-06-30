@@ -145,6 +145,7 @@ function Shell() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [apiUrl, setApiUrlState] = useState(getApiUrl());
   const [sync, setSync] = useState('Demo data');
+  const [crewDirectory, setCrewDirectory] = useState(mockData.crew);
 
   async function ping() {
     setSync('Checking...');
@@ -176,7 +177,7 @@ function Shell() {
         <div className="topActions"><button className="ghost" onClick={() => setActive('copilot')}><Bot size={16}/> Ask AI Copilot</button><button className="sync" onClick={ping}>{sync}</button><button className="ghost logoutBtn" onClick={handleLogout}>Sign out</button><div className="avatar">AI</div></div>
       </header>
       <FeatureStrip features={meta.features}/>
-      <Screen active={active} setActive={setActive} apiUrl={apiUrl} setApiUrlState={setApiUrlState} saveUrl={saveUrl}/>
+      <Screen active={active} setActive={setActive} apiUrl={apiUrl} setApiUrlState={setApiUrlState} saveUrl={saveUrl} crewDirectory={crewDirectory} setCrewDirectory={setCrewDirectory}/>
     </main>
   </div>;
 }
@@ -254,20 +255,20 @@ function exportCsv(filename, rows) {
 function Command({ setActive }) { const [startDate,setStartDate]=useState('2026-06-01'); const [endDate,setEndDate]=useState('2026-06-30'); const range=getOpsRange(startDate,endDate); const items=[{label:'Flights Today',value:range.flights.length,note:`${range.days.length} June day(s) selected`,tone:'ok',screen:'flightsDetail'},{label:'Open Exceptions',value:range.exceptions.filter(x=>x.priority!=='Low').length,note:'high / medium triage',tone:'risk',screen:'exceptionsDetail'},{label:'Late Check-ins',value:range.checkins.filter(x=>x.status==='Late').length,note:'auto-escalated',tone:'warn',screen:'checkinsDetail'},{label:'Roster Stability',value:`${range.avgStability}%`,note:'average selected range',tone:'info',screen:'stabilityDetail'}]; return <><DateRangePicker startDate={startDate} endDate={endDate} setStartDate={setStartDate} setEndDate={setEndDate}/><Kpis items={items} onSelect={k=>setActive(k.screen)}/><div className="grid two"><Gantt/><Table title="Priority Exceptions" columns={['date','type','crew','flight','sla','priority']} rows={range.exceptions.slice(0,10)}/><Table title="Flights in Selected Range" columns={['date','flight','sector','std','aircraft','status']} rows={range.flights.slice(0,10)}/><MiniChart title="Recovery Cycle Time" /></div></>; }
 function DetailScreen({ type }) { const [startDate,setStartDate]=useState('2026-06-01'); const [endDate,setEndDate]=useState('2026-06-30'); const range=getOpsRange(startDate,endDate); const configs={flightsDetail:{title:'Downloadable Flight Operations Register',cols:['date','flight','sector','std','sta','aircraft','need','status','gate','crewedPercent'],rows:range.flights,kpis:[{label:'Selected Flights',value:range.flights.length,note:'scheduled sectors',tone:'ok'},{label:'Open Trips',value:range.flights.filter(x=>x.status==='Open trip').length,note:'needs action',tone:'risk'},{label:'Delay Risks',value:range.flights.filter(x=>x.status==='Delay risk').length,note:'watchlist',tone:'warn'},{label:'Crewed Avg',value:'94%',note:'range estimate',tone:'info'}]},exceptionsDetail:{title:'Downloadable Exception Register',cols:['date','type','crew','flight','sla','priority','owner'],rows:range.exceptions,kpis:[{label:'All Exceptions',value:range.exceptions.length,note:'selected range',tone:'risk'},{label:'High Priority',value:range.exceptions.filter(x=>x.priority==='High').length,note:'OCC focus',tone:'risk'},{label:'Medium',value:range.exceptions.filter(x=>x.priority==='Med').length,note:'planner queue',tone:'warn'},{label:'SLA Owners',value:'4',note:'active desks',tone:'info'}]},checkinsDetail:{title:'Downloadable Check-in Audit',cols:['date','crew','flight','report','actual','status','evidence'],rows:range.checkins,kpis:[{label:'Check-ins',value:range.checkins.length,note:'selected range',tone:'info'},{label:'Late',value:range.checkins.filter(x=>x.status==='Late').length,note:'escalated',tone:'warn'},{label:'Pending',value:range.checkins.filter(x=>x.status==='Pending').length,note:'monitor',tone:'risk'},{label:'Evidence OK',value:range.checkins.filter(x=>x.evidence.includes('OK')).length,note:'validated',tone:'ok'}]},stabilityDetail:{title:'Downloadable Roster Stability Dataset',cols:['date','flightCount','exceptionCount','lateCheckIns','stability'],rows:range.days,kpis:[{label:'Average Stability',value:`${range.avgStability}%`,note:'selected range',tone:'info'},{label:'Best Day',value:`${Math.max(...range.days.map(x=>x.stability))}%`,note:'June peak',tone:'ok'},{label:'Change Load',value:range.exceptions.length,note:'exception pressure',tone:'warn'},{label:'Late Impact',value:range.checkins.filter(x=>x.status==='Late').length,note:'attendance pressure',tone:'risk'}]}}; const cfg=configs[type]; return <><DateRangePicker startDate={startDate} endDate={endDate} setStartDate={setStartDate} setEndDate={setEndDate}/><Kpis items={cfg.kpis}/><div className="grid two"><Table title={cfg.title} columns={cfg.cols} rows={cfg.rows} actions={<button className="downloadBtn" onClick={()=>exportCsv(`${type}-${startDate}-to-${endDate}.csv`, cfg.rows)}><Download size={15}/> Download CSV</button>}/><MiniChart title="Selected Range Trend" /></div></>; }
 
-function Roster() {
+function Roster({ crewDirectory = mockData.crew }) {
   const [fleet,setFleet]=useState('ATR');
   const [base,setBase]=useState('KUL');
   const [rank,setRank]=useState('All');
   const [exceptionsOn,setExceptionsOn]=useState(true);
   const [version,setVersion]=useState('Published v3');
   const [newStatus,setNewStatus]=useState('Ready');
-  const [selectedCrew,setSelectedCrew]=useState(mockData.crew[0]?.crewId || '');
-  const [crewStatuses,setCrewStatuses]=useState(() => Object.fromEntries(mockData.crew.map(crew => [crew.crewId, crew.status])));
+  const [selectedCrew,setSelectedCrew]=useState(crewDirectory[0]?.crewId || '');
+  const [crewStatuses,setCrewStatuses]=useState(() => Object.fromEntries(crewDirectory.map(crew => [crew.crewId, crew.status])));
   const [validation,setValidation]=useState('Not validated');
   const [publishState,setPublishState]=useState('Roster has draft edits');
   const [viewAll,setViewAll]=useState(false);
 
-  const rosterCrew = mockData.crew
+  const rosterCrew = crewDirectory
     .map(crew => ({ ...crew, status: crewStatuses[crew.crewId] || crew.status }))
     .filter(crew => fleet === 'All' || crew.fleet === fleet)
     .filter(crew => base === 'All' || crew.base === base)
@@ -316,7 +317,7 @@ function Roster() {
     </div>
     <div className="card rosterControl">
       <div><strong>Crew status update</strong><small>Add or update crew availability before validation and publish.</small></div>
-      <select value={selectedCrew} onChange={e=>setSelectedCrew(e.target.value)}>{mockData.crew.map(crew => <option key={crew.crewId} value={crew.crewId}>{crew.crewId} · {crew.name}</option>)}</select>
+      <select value={selectedCrew} onChange={e=>setSelectedCrew(e.target.value)}>{crewDirectory.map(crew => <option key={crew.crewId} value={crew.crewId}>{crew.crewId} · {crew.name}</option>)}</select>
       <select value={newStatus} onChange={e=>setNewStatus(e.target.value)}>{['Ready','Training','Standby','Sick','Leave','Unavailable','Med expiring'].map(status => <option key={status}>{status}</option>)}</select>
       <button onClick={applyCrewStatus}>Add status</button>
     </div>
@@ -382,14 +383,14 @@ function KpiDrivenScreen({ state, items, tableConfigs, children }) {
   </>;
 }
 
-function Crew() {
+function Crew({ crewDirectory = mockData.crew }) {
   const state=useJuneKpiRange('Active Crew');
-  const expiringCrew=mockData.crew.filter(crew => crew.status.includes('expiring') || crew.medical === 'Expiring' || crew.training.includes('due'));
-  const qualifiedCrew=mockData.crew.filter(crew => crew.status === 'Ready' && crew.medical === 'Valid');
-  const dataGapCrew=mockData.crew.filter(crew => crew.license === 'N/A' || crew.status !== 'Ready');
-  const items=[{label:'Active Crew',value:mockData.crew.length,note:`${state.range.days.length} June day(s) selected`,tone:'info'},{label:'Expiring Docs',value:expiringCrew.length,note:'within June review window',tone:'warn'},{label:'Qualified Pool',value:`${Math.round((qualifiedCrew.length/mockData.crew.length)*100)}%`,note:'eligible for schedule',tone:'ok'},{label:'Data Gaps',value:dataGapCrew.length,note:'maker-checker queue',tone:'risk'}];
+  const expiringCrew=crewDirectory.filter(crew => crew.status.includes('expiring') || crew.medical === 'Expiring' || crew.training.includes('due'));
+  const qualifiedCrew=crewDirectory.filter(crew => crew.status === 'Ready' && crew.medical === 'Valid');
+  const dataGapCrew=crewDirectory.filter(crew => crew.license === 'N/A' || crew.status !== 'Ready');
+  const items=[{label:'Active Crew',value:crewDirectory.length,note:`${state.range.days.length} June day(s) selected`,tone:'info'},{label:'Expiring Docs',value:expiringCrew.length,note:'within June review window',tone:'warn'},{label:'Qualified Pool',value:`${Math.round((qualifiedCrew.length/crewDirectory.length)*100)}%`,note:'eligible for schedule',tone:'ok'},{label:'Data Gaps',value:dataGapCrew.length,note:'maker-checker queue',tone:'risk'}];
   const tableConfigs={
-    'Active Crew': { title:'Crew 360 Active Crew Results', columns:['crewId','name','rank','base','fleet','status','medical','license','training'], rows:mockData.crew },
+    'Active Crew': { title:'Crew 360 Active Crew Results', columns:['crewId','name','rank','base','fleet','status','medical','license','training'], rows:crewDirectory },
     'Expiring Docs': { title:'Crew 360 Expiring Document Results', columns:['crewId','name','rank','base','fleet','status','medical','license','training'], rows:expiringCrew },
     'Qualified Pool': { title:'Crew 360 Qualified Pool Results', columns:['crewId','name','rank','base','fleet','status','medical','license','training'], rows:qualifiedCrew },
     'Data Gaps': { title:'Crew 360 Data Gap Results', columns:['crewId','name','rank','base','fleet','status','medical','license','training'], rows:dataGapCrew }
@@ -411,10 +412,10 @@ function Ops() {
   };
   return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><div className="grid two"><MiniChart title="June Attendance Trend"/><Table title="Absence Desk" columns={['caseId','issue','flight','priority','status']} rows={mockData.recoveryCases}/></div></KpiDrivenScreen>;
 }
-function Recovery() {
+function Recovery({ crewDirectory = mockData.crew }) {
   const state=useJuneKpiRange('Disruptions');
   const disruptions=state.range.exceptions.filter(row => row.priority !== 'Low');
-  const reservePool=mockData.crew.filter(crew => ['Ready','Standby'].includes(crew.status));
+  const reservePool=crewDirectory.filter(crew => ['Ready','Standby'].includes(crew.status));
   const bestOptions=[{crew:'CPT Amir',why:'same base, rest OK',score:96},{crew:'CPT Shafiq',why:'reserve, fleet OK',score:91},{crew:'CPT Nadia',why:'legal but low rest',score:79}];
   const protectedFlights=state.range.flights.filter(row => row.status === 'Crewed');
   const items=[{label:'Disruptions',value:disruptions.length,note:'active cases',tone:'risk'},{label:'Reserve Pool',value:reservePool.length,note:'available in June range',tone:'ok'},{label:'Best Option ETA',value:'14m',note:'legal replacement',tone:'info'},{label:'OTP Protected',value:protectedFlights.length,note:'flights saved',tone:'info'}];
@@ -426,11 +427,11 @@ function Recovery() {
   };
   return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><div className="grid two"><Table title="Recovery Cases" columns={['caseId','issue','flight','priority','status']} rows={mockData.recoveryCases}/><Gantt title="Before / After Recovery Timeline" rows={4}/></div></KpiDrivenScreen>;
 }
-function Optimizer() {
+function Optimizer({ crewDirectory = mockData.crew }) {
   const state=useJuneKpiRange('Scenario A Cost');
   const scenarioRows=[{metric:'Open trips',base:19,optimized:3},{metric:'Overtime hrs',base:420,optimized:278},{metric:'Standby days',base:188,optimized:172},{metric:'Free weekends equity',base:'61%',optimized:'83%'},{metric:'Line checks due',base:14,optimized:4}];
   const fatigueRows=state.range.exceptions.filter(row => ['Rest risk','Medical review'].includes(row.type));
-  const preferenceRows=mockData.crew.map(crew => ({crewId:crew.crewId,name:crew.name,rank:crew.rank,base:crew.base,preference:'Granted',stability:`${state.range.avgStability}%`}));
+  const preferenceRows=crewDirectory.map(crew => ({crewId:crew.crewId,name:crew.name,rank:crew.rank,base:crew.base,preference:'Granted',stability:`${state.range.avgStability}%`}));
   const items=[{label:'Scenario A Cost',value:'MYR 1.82M',note:`${state.range.days.length} June day(s) baseline`,tone:'info'},{label:'Scenario B Cost',value:'MYR 1.75M',note:'4.1% saving',tone:'ok'},{label:'Preference Grant',value:'74%',note:'within stability cap',tone:'info'},{label:'Fatigue Risk',value:fatigueRows.length,note:'warnings in range',tone:'warn'}];
   const tableConfigs={
     'Scenario A Cost': { title:'Scenario A Baseline Results', columns:['metric','base','optimized'], rows:scenarioRows },
@@ -454,9 +455,9 @@ function Rules() {
   };
   return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><Table title="Rule Configuration Preview" columns={['parameter','value','type']} rows={[{parameter:'Min rest',value:'12h',type:'Hard'},{parameter:'Expiry alert',value:'90 days',type:'Soft'},{parameter:'Max consecutive duty',value:'6',type:'Hard'},{parameter:'Check-in window',value:'90m',type:'Soft'}]}/></KpiDrivenScreen>;
 }
-function Reports() {
+function Reports({ crewDirectory = mockData.crew }) {
   const state=useJuneKpiRange('Utilization');
-  const utilizationRows=mockData.crew.map((crew, index) => ({crewId:crew.crewId,name:crew.name,rank:crew.rank,base:crew.base,utilization:`${72 + index * 3}%`}));
+  const utilizationRows=crewDirectory.map((crew, index) => ({crewId:crew.crewId,name:crew.name,rank:crew.rank,base:crew.base,utilization:`${72 + index * 3}%`}));
   const overtimeRows=state.range.exceptions.filter(row => row.type === 'Rest risk');
   const unassignedRows=state.range.flights.filter(row => ['Missing CC','Open trip'].includes(row.status));
   const payrollRows=state.range.checkins.filter(row => row.status !== 'Pending');
@@ -469,21 +470,52 @@ function Reports() {
   };
   return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><div className="grid two"><MiniChart title="Crew Utilization by Rank"/><MiniChart title="Standby and Overtime Trend"/></div></KpiDrivenScreen>;
 }
-function Backend({apiUrl,setApiUrlState,saveUrl}) {
+function Backend({apiUrl,setApiUrlState,saveUrl, crewDirectory = mockData.crew}) {
   const state=useJuneKpiRange('Webhook Calls');
-  const sheetRows=[{sheet:'Crew_Master',records:mockData.crew.length,status:'OK'},{sheet:'Roster_Published',records:state.range.flights.length,status:'OK'},{sheet:'CheckIns',records:state.range.checkins.length,status:'OK'},{sheet:'Recovery_Cases',records:state.range.exceptions.length,status:'OK'},{sheet:'Audit_Log',records:state.range.days.length * 42,status:'OK'}];
+  const sheetRows=[{sheet:'Crew_Master',records:crewDirectory.length,status:'OK'},{sheet:'Roster_Published',records:state.range.flights.length,status:'OK'},{sheet:'CheckIns',records:state.range.checkins.length,status:'OK'},{sheet:'Recovery_Cases',records:state.range.exceptions.length,status:'OK'},{sheet:'Audit_Log',records:state.range.days.length * 42,status:'OK'}];
   const apiRows=[{endpoint:'/crew/login',latency:'280ms',status:'OK'},{endpoint:'/roster/get',latency:'310ms',status:'OK'},{endpoint:'/checkin/post',latency:'255ms',status:'OK'},{endpoint:'/absence/post',latency:'420ms',status:'OK'},{endpoint:'/notify',latency:'Retry',status:'Warn'}];
   const failedRows=apiRows.filter(row => row.status !== 'OK');
-  const items=[{label:'Webhook Calls',value:state.range.days.length * 161,note:'selected June range',tone:'info'},{label:'Failed Jobs',value:failedRows.length,note:'retry queued',tone:'risk'},{label:'Sheets Sync',value:'Live',note:'June workbook sync',tone:'ok'},{label:'Active Users',value:mockData.crew.length + 31,note:'web + mobile',tone:'info'}];
+  const items=[{label:'Webhook Calls',value:state.range.days.length * 161,note:'selected June range',tone:'info'},{label:'Failed Jobs',value:failedRows.length,note:'retry queued',tone:'risk'},{label:'Sheets Sync',value:'Live',note:'June workbook sync',tone:'ok'},{label:'Active Users',value:crewDirectory.length + 31,note:'web + mobile',tone:'info'}];
   const tableConfigs={
     'Webhook Calls': { title:'Webhook Call Results', columns:['endpoint','latency','status'], rows:apiRows },
     'Failed Jobs': { title:'Failed Job Results', columns:['endpoint','latency','status'], rows:failedRows },
     'Sheets Sync': { title:'Database + API Sync Results', columns:['sheet','records','status'], rows:sheetRows },
-    'Active Users': { title:'Active User Results', columns:['crewId','name','rank','base','fleet','status'], rows:mockData.crew }
+    'Active Users': { title:'Active User Results', columns:['crewId','name','rank','base','fleet','status'], rows:crewDirectory }
   };
   return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><div className="grid two"><Table title="Database Map" columns={['sheet','records','status']} rows={sheetRows}/><Table title="Api Monitor" columns={['endpoint','latency','status']} rows={apiRows}/></div></KpiDrivenScreen>;
 }
-function Copilot() { const [q,setQ]=useState('Show flights with missing crew and recommend recovery'); const [answer,setAnswer]=useState('Ask a question to search across roster, crew, check-ins, exceptions and the acronym glossary.'); async function ask(){ const glossaryHit = glossaryAnswer(q); const res=await callAcms('aiCopilot',{question:q, glossary: glossaryTerms}); setAnswer(res?.answer || (glossaryHit.includes('could not find') ? 'Demo answer: 3 flights have crew gaps. Prioritize FY2176 missing CC, FY3124 no-show CPT and FY4020 delay duty risk. Recommended action is to call up reserve CPT Amir, confirm CC standby pool, then republish affected roster version.' : glossaryHit)); } return <div className="card copilot"><div className="cardTitle">AI Copilot</div><div className="searchbar"><Search size={18}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Ask about rosters, recovery, KPIs or an acronym..."/><button onClick={ask}>Ask</button></div><div className="answer">{answer}</div><div className="quickQs">{['What does FDP mean?','Summarize open exceptions','Who has license expiring in 30 days?','Explain recovery option for FY3124','Draft OCC briefing'].map(x=><button key={x} onClick={()=>setQ(x)}>{x}</button>)}</div></div>; }
+function buildCopilotAnswer(question, crewDirectory = mockData.crew) {
+  const text = question.trim().toLowerCase();
+  const glossaryHit = glossaryAnswer(question);
+  const range = getOpsRange('2026-06-01', '2026-06-30');
+  const gapFlights = range.flights.filter(flight => ['Missing CC','Open trip','Delay risk'].includes(flight.status));
+  const priorityExceptions = range.exceptions.filter(exception => exception.priority !== 'Low');
+  const expiringCrew = crewDirectory.filter(crew => crew.status.includes('expiring') || crew.medical === 'Expiring' || crew.training.includes('due'));
+  const readyCrew = crewDirectory.filter(crew => ['Ready','Standby'].includes(crew.status));
+
+  if (!question.trim()) return 'Ask about flights, crew, exceptions, recovery, KPIs, users or ACMS acronyms.';
+  if (!glossaryHit.includes('could not find') && (text.includes('mean') || glossaryTerms.some(item => text.includes(item.acronym.toLowerCase())))) return glossaryHit;
+  if (text.includes('missing') || text.includes('gap') || text.includes('unassigned')) return `Fast answer: ${gapFlights.length} crew-risk flights need action. Prioritize ${gapFlights.slice(0, 5).map(flight => `${flight.flight} (${flight.status}, ${flight.need})`).join(', ')}. Use ready/standby crew from ${readyCrew.length} available records, validate legality, then publish the affected roster.`;
+  if (text.includes('exception') || text.includes('summarize')) return `Fast answer: ${priorityExceptions.length} high/medium exceptions across June. Top queues: ${priorityExceptions.slice(0, 6).map(item => `${item.type} for ${item.crew} on ${item.flight}`).join('; ')}. Work high-priority no-shows first, then rest and aircraft-swap risks.`;
+  if (text.includes('license') || text.includes('expir') || text.includes('document') || text.includes('training')) return `Fast answer: ${expiringCrew.length} crew records need document or qualification review: ${expiringCrew.map(crew => `${crew.crewId} ${crew.name} (${crew.status}, ${crew.training})`).join('; ') || 'none'}.`;
+  if (text.includes('recovery') || text.includes('fy3124')) return 'Fast answer: for FY3124, open a recovery case, call the same-base standby CPT first, confirm rest and fleet legality, notify OCC, then republish the roster once the replacement accepts.';
+  if (text.includes('brief') || text.includes('occ')) return `OCC briefing draft: ${range.flights.length} June sectors loaded, ${gapFlights.length} crew-risk flights, ${priorityExceptions.length} priority exceptions and ${readyCrew.length} ready/standby crew available. Focus on no-shows, rest risks and missing cabin crew before departure banks.`;
+  if (text.includes('user') || text.includes('admin')) return `Fast answer: Admin can provision users and crew members. The current directory has ${crewDirectory.length} crew-visible user records that flow into Crew 360, Roster, Recovery, Analytics and Backend active-user views.`;
+  return `Fast answer: I found ${crewDirectory.length} crew records, ${range.flights.length} June flight rows, ${priorityExceptions.length} priority exceptions and ${readyCrew.length} ready/standby crew. Ask for missing crew, exceptions, recovery, expiring documents, users or an acronym for a targeted answer.`;
+}
+
+function Copilot({ crewDirectory = mockData.crew }) {
+  const [q,setQ]=useState('Show flights with missing crew and recommend recovery');
+  const [answer,setAnswer]=useState('Ask a question to search instantly across roster, crew, check-ins, exceptions, users and the acronym glossary.');
+  function ask(){
+    const instantAnswer = buildCopilotAnswer(q, crewDirectory);
+    setAnswer(instantAnswer);
+    callAcms('aiCopilot',{question:q, glossary: glossaryTerms, crew: crewDirectory})
+      .then(res => { if (res?.answer) setAnswer(res.answer); })
+      .catch(() => {});
+  }
+  return <div className="card copilot"><div className="cardTitle">AI Copilot · Fast Answers</div><div className="searchbar"><Search size={18}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Ask about rosters, recovery, KPIs, users or an acronym..."/><button onClick={ask}>Ask</button></div><div className="answer">{answer}</div><div className="quickQs">{['What does FDP mean?','Summarize open exceptions','Who has license expiring in 30 days?','Explain recovery option for FY3124','How many users are crew-visible?','Draft OCC briefing'].map(x=><button key={x} onClick={()=>setQ(x)}>{x}</button>)}</div></div>;
+}
 
 function Glossary() {
   const [query, setQuery] = useState('');
@@ -509,9 +541,56 @@ function Glossary() {
   </>;
 }
 
-function Admin() { return <><div className="grid two"><Table title="Rule Configuration" columns={['parameter','value','type']} rows={[{parameter:'Min rest',value:'12h',type:'Hard'},{parameter:'Max FDP',value:'13h',type:'Hard'},{parameter:'Medical expiry alert',value:'90/60/30d',type:'Soft'},{parameter:'Geo check-in',value:'Enabled',type:'Control'}]}/><Table title="Users & RBAC" columns={['role','users','scope']} rows={[{role:'Crew',users:1284,scope:'Self service'},{role:'Planner',users:24,scope:'Roster build'},{role:'OCC',users:18,scope:'Ops control'},{role:'Admin',users:7,scope:'System'}]}/></div><div className="card checklist"><div className="cardTitle">System Health Checklist</div>{['Daily trigger installed','Backup scheduled','Webhook deployment active','Protected ranges enabled','Audit logging enabled'].map(x=><p key={x}><CheckCircle2 size={16}/>{x}</p>)}</div></>; }
+function Admin({ crewDirectory = mockData.crew, setCrewDirectory }) {
+  const [form, setForm] = useState({ name:'', role:'Crew', rank:'CC', base:'KUL', fleet:'ATR', status:'Ready' });
+  const userRows = [
+    {role:'Crew',users:crewDirectory.length,scope:'Self service + Crew 360'},
+    {role:'Planner',users:24,scope:'Roster build'},
+    {role:'OCC',users:18,scope:'Ops control'},
+    {role:'Admin',users:7,scope:'System'}
+  ];
+  function updateForm(field, value) { setForm(current => ({ ...current, [field]: value })); }
+  function addUser(event) {
+    event.preventDefault();
+    if (!form.name.trim() || !setCrewDirectory) return;
+    const prefix = form.role === 'Crew' ? form.rank : form.role.toUpperCase().slice(0, 3);
+    const newCrew = {
+      crewId: `${prefix}-${Date.now().toString().slice(-4)}`,
+      name: form.name.trim(),
+      rank: form.role === 'Crew' ? form.rank : form.role,
+      base: form.base,
+      fleet: form.fleet,
+      status: form.status,
+      medical: 'Valid',
+      license: form.rank === 'CC' ? 'N/A' : 'Valid',
+      training: 'Valid'
+    };
+    setCrewDirectory(current => [...current, newCrew]);
+    setForm(current => ({ ...current, name:'' }));
+  }
+  return <>
+    <div className="grid two">
+      <div className="card adminProvision">
+        <div className="cardTitle">Add User / Crew Member</div>
+        <form onSubmit={addUser}>
+          <label>Name<input value={form.name} onChange={e=>updateForm('name', e.target.value)} placeholder="Enter user or crew name"/></label>
+          <label>Access role<select value={form.role} onChange={e=>updateForm('role', e.target.value)}>{['Crew','Planner','OCC','Admin'].map(role => <option key={role}>{role}</option>)}</select></label>
+          <label>Rank<select value={form.rank} onChange={e=>updateForm('rank', e.target.value)}>{['CC','FO','CPT'].map(rank => <option key={rank}>{rank}</option>)}</select></label>
+          <label>Base<select value={form.base} onChange={e=>updateForm('base', e.target.value)}>{['KUL','PEN','BKI','SZB','JHB'].map(base => <option key={base}>{base}</option>)}</select></label>
+          <label>Fleet<select value={form.fleet} onChange={e=>updateForm('fleet', e.target.value)}>{['ATR','B737'].map(fleet => <option key={fleet}>{fleet}</option>)}</select></label>
+          <label>Status<select value={form.status} onChange={e=>updateForm('status', e.target.value)}>{['Ready','Standby','Training','Leave','Unavailable'].map(status => <option key={status}>{status}</option>)}</select></label>
+          <button className="downloadBtn" type="submit">Add to system</button>
+        </form>
+      </div>
+      <Table title="Users & RBAC" columns={['role','users','scope']} rows={userRows}/>
+      <Table title="Rule Configuration" columns={['parameter','value','type']} rows={[{parameter:'Min rest',value:'12h',type:'Hard'},{parameter:'Max FDP',value:'13h',type:'Hard'},{parameter:'Medical expiry alert',value:'90/60/30d',type:'Soft'},{parameter:'Geo check-in',value:'Enabled',type:'Control'}]}/>
+      <Table title="Provisioned Crew Directory" columns={['crewId','name','rank','base','fleet','status']} rows={crewDirectory}/>
+    </div>
+    <div className="card checklist"><div className="cardTitle">System Health Checklist</div>{['Daily trigger installed','Backup scheduled','Webhook deployment active','Protected ranges enabled','Audit logging enabled'].map(x=><p key={x}><CheckCircle2 size={16}/>{x}</p>)}</div>
+  </>;
+}
 function MiniChart({title}) { const bars=[30,62,48,82,68,96,74]; return <div className="card chart"><div className="cardTitle">{title}</div><div className="bars">{bars.map((b,i)=><span key={i} style={{height:b+'%'}}><small>W{i+1}</small></span>)}</div></div>; }
 
-function Screen(props) { const m = { command:<Command setActive={props.setActive}/>, flightsDetail:<DetailScreen type="flightsDetail"/>, exceptionsDetail:<DetailScreen type="exceptionsDetail"/>, checkinsDetail:<DetailScreen type="checkinsDetail"/>, stabilityDetail:<DetailScreen type="stabilityDetail"/>, roster:<Roster/>, demand:<Demand/>, crew:<Crew/>, ops:<Ops/>, recovery:<Recovery/>, optimizer:<Optimizer/>, rules:<Rules/>, reports:<Reports/>, backend:<Backend {...props}/>, copilot:<Copilot/>, admin:<Admin/>, glossary:<Glossary/> }; return <section className="screen">{m[props.active]}</section>; }
+function Screen(props) { const m = { command:<Command setActive={props.setActive}/>, flightsDetail:<DetailScreen type="flightsDetail"/>, exceptionsDetail:<DetailScreen type="exceptionsDetail"/>, checkinsDetail:<DetailScreen type="checkinsDetail"/>, stabilityDetail:<DetailScreen type="stabilityDetail"/>, roster:<Roster crewDirectory={props.crewDirectory}/>, demand:<Demand/>, crew:<Crew crewDirectory={props.crewDirectory}/>, ops:<Ops/>, recovery:<Recovery crewDirectory={props.crewDirectory}/>, optimizer:<Optimizer crewDirectory={props.crewDirectory}/>, rules:<Rules/>, reports:<Reports crewDirectory={props.crewDirectory}/>, backend:<Backend {...props}/>, copilot:<Copilot crewDirectory={props.crewDirectory}/>, admin:<Admin crewDirectory={props.crewDirectory} setCrewDirectory={props.setCrewDirectory}/>, glossary:<Glossary/> }; return <section className="screen">{m[props.active]}</section>; }
 
 createRoot(document.getElementById('root')).render(<Shell />);
