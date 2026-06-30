@@ -16,7 +16,7 @@ const nav = [
   { key: 'optimizer', label: 'Scenario Lab', icon: Activity },
   { key: 'rules', label: 'Rules', icon: ShieldCheck },
   { key: 'reports', label: 'Analytics', icon: FileText },
-  { key: 'backend', label: 'Sheets + Webhook', icon: Database },
+  { key: 'backend', label: 'Sheets + Workbook', icon: Database },
   { key: 'copilot', label: 'AI Copilot', icon: Bot },
   { key: 'admin', label: 'Admin', icon: Settings },
   { key: 'glossary', label: 'Glossary', icon: BookOpen }
@@ -36,7 +36,7 @@ const screenMeta = {
   optimizer: { id: 'W14', title: 'Optimizer Scenario Lab', subtitle: 'Compare roster alternatives before publishing', features: ['Scenario A/B comparison', 'Cost, overtime, stability and preference grant', 'Equal distribution for standby, free weekends and block hours', 'Fatigue and legality impact preview'] },
   rules: { id: 'W15', title: 'Rule & Legality Console', subtitle: 'Validation, explainability and override controls', features: ['Hard blocks and soft warnings', 'Rule configuration preview', 'Override rights with mandatory reason capture', 'Audit-ready evidence of every rule execution'] },
   reports: { id: 'W22', title: 'Analytics & KPI Dashboard', subtitle: 'Management scorecards and exportable KPIs', features: ['Utilization, roster quality and governance trends', 'Recovery time and leave demand', 'Training expiry and check-in compliance', 'Payroll readiness and KPI snapshots'] },
-  backend: { id: 'W25/W26', title: 'Google Sheets + Apps Script Monitor', subtitle: 'Webhook health and backend sheet governance', features: ['Endpoint status, latency and failed calls', 'Google Sheet schema and record count monitoring', 'Retry queue and payload inspection', 'Backup and trigger status'] },
+  backend: { id: 'W25/W26', title: 'Google Sheets + Workbook Monitor', subtitle: 'Webhook health and backend sheet governance', features: ['Endpoint status, latency and failed calls', 'Google Sheet schema and record count monitoring', 'Retry queue and payload inspection', 'Backup and trigger status'] },
   copilot: { id: 'W29', title: 'AI Copilot & Natural Language Search', subtitle: 'Assistant layer for roster data and suggested actions', features: ['Ask roster questions', 'Summarize exceptions', 'Explain recommendations', 'Draft recovery notifications and daily briefings'] },
   admin: { id: 'W27/W28/W31', title: 'Administration Console', subtitle: 'Rules, RBAC, system settings and support controls', features: ['Rule thresholds and master data', 'User provisioning and access scopes', 'Trigger schedules and backups', 'Maintenance banner and environment flags'] },
   glossary: { id: 'W32', title: 'ACMS Glossary & Acronym Copilot', subtitle: 'Complete acronym dictionary with searchable AI assistance', features: ['Every ACMS acronym expanded with operational meaning', 'Category filters across crew, flight, compliance, systems and analytics', 'AI copilot answers questions using the glossary context', 'Quick reference for planners, OCC, admins and crew users'] }
@@ -363,13 +363,126 @@ function Demand() {
     <Table title={cfg.title} columns={cfg.columns} rows={cfg.rows} actions={<button className="downloadBtn" onClick={()=>exportCsv(`demand-${selectedKpi.toLowerCase().replaceAll(' ','-')}-${startDate}-to-${endDate}.csv`, cfg.rows)}><Download size={15}/> Download CSV</button>}/>
   </>;
 }
-function Crew() { return <><Kpis items={[{label:'Active Crew',value:'1,284',note:'rank/base/fleet mapped',tone:'info'},{label:'Expiring Docs',value:'42',note:'within 30 days',tone:'warn'},{label:'Qualified Pool',value:'91%',note:'eligible for schedule',tone:'ok'},{label:'Data Gaps',value:'23',note:'maker-checker queue',tone:'risk'}]}/><div className="grid two"><Table title="Crew Master 360" columns={['crewId','name','rank','base','fleet','status']} rows={mockData.crew}/><Gantt title="Qualification & Validity Timeline" rows={8}/></div></>; }
-function Ops() { return <><Kpis items={[{label:'Due Check-ins',value:'84',note:'next 4h',tone:'info'},{label:'Late',value:'4',note:'escalated',tone:'warn'},{label:'No-show Risk',value:'2',note:'recovery ready',tone:'risk'},{label:'MC Review',value:'9',note:'pending OCC',tone:'info'}]}/><div className="grid two"><Table title="Check-In Monitor" columns={['crew','flight','status','sla']} rows={[{crew:'CPT-204',flight:'FY3124',status:'Late',sla:'12m'},{crew:'FO-872',flight:'FY4020',status:'Pending',sla:'28m'},{crew:'CC-519',flight:'FY2176',status:'Checked-in',sla:'OK'}]}/><Table title="Absence Desk" columns={['caseId','issue','flight','priority','status']} rows={mockData.recoveryCases}/></div></>; }
-function Recovery() { return <><Kpis items={[{label:'Disruptions',value:'8',note:'active cases',tone:'risk'},{label:'Reserve Pool',value:'37',note:'available now',tone:'ok'},{label:'Best Option ETA',value:'14m',note:'legal replacement',tone:'info'},{label:'OTP Protected',value:'5',note:'flights saved',tone:'info'}]}/><div className="grid two"><Table title="Recovery Cases" columns={['caseId','issue','flight','priority','status']} rows={mockData.recoveryCases}/><Table title="Ranked Recommendations" columns={['crew','why','score']} rows={[{crew:'CPT Amir',why:'same base, rest OK',score:96},{crew:'CPT Shafiq',why:'reserve, fleet OK',score:91},{crew:'CPT Nadia',why:'legal but low rest',score:79}]}/></div><Gantt title="Before / After Recovery Timeline" rows={4}/></>; }
-function Optimizer() { return <><Kpis items={[{label:'Scenario A Cost',value:'MYR 1.82M',note:'baseline roster',tone:'info'},{label:'Scenario B Cost',value:'MYR 1.75M',note:'4.1% saving',tone:'ok'},{label:'Preference Grant',value:'74%',note:'within stability cap',tone:'info'},{label:'Fatigue Risk',value:'Low',note:'12 warnings',tone:'warn'}]}/><div className="grid two"><Table title="Scenario Comparison" columns={['metric','base','optimized']} rows={[{metric:'Open trips',base:19,optimized:3},{metric:'Overtime hrs',base:420,optimized:278},{metric:'Standby days',base:188,optimized:172},{metric:'Free weekends equity',base:'61%',optimized:'83%'},{metric:'Line checks due',base:14,optimized:4}]}/><MiniChart title="Annual Block Hours Distribution" /></div><Gantt title="Optimization Impact Preview" rows={5}/></>; }
-function Rules() { return <><Kpis items={[{label:'Rules Checked',value:'12,482',note:'this roster build',tone:'info'},{label:'Hard Blocks',value:'18',note:'must resolve',tone:'risk'},{label:'Soft Warnings',value:'63',note:'review required',tone:'warn'},{label:'Overrides',value:'7',note:'reason captured',tone:'info'}]}/><div className="grid two"><Table title="Legality Validation Console" columns={['rule','result','action','severity']} rows={mockData.rules}/><Table title="Rule Configuration Preview" columns={['parameter','value','type']} rows={[{parameter:'Min rest',value:'12h',type:'Hard'},{parameter:'Expiry alert',value:'90 days',type:'Soft'},{parameter:'Max consecutive duty',value:'6',type:'Hard'},{parameter:'Check-in window',value:'90m',type:'Soft'}]}/></div></>; }
-function Reports() { return <><Kpis items={[{label:'Utilization',value:'76%',note:'fleet weighted',tone:'info'},{label:'Overtime',value:'-12%',note:'vs previous month',tone:'ok'},{label:'Unassigned Trips',value:'3',note:'after optimizer',tone:'warn'},{label:'Payroll Ready',value:'98%',note:'2 exceptions',tone:'ok'}]}/><div className="grid two"><MiniChart title="Crew Utilization by Rank"/><MiniChart title="Standby and Overtime Trend"/></div><Table title="Management KPI Report" columns={['kpi','current','target','status']} rows={[{kpi:'Roster stability',current:'88%',target:'85%',status:'Green'},{kpi:'Preference grant',current:'74%',target:'70%',status:'Green'},{kpi:'Fatigue warnings',current:'12',target:'<20',status:'Green'},{kpi:'Manual overrides',current:'7',target:'<10',status:'Green'}]}/></>; }
-function Backend({apiUrl,setApiUrlState,saveUrl}) { return <><Kpis items={[{label:'Webhook Calls',value:'4,821',note:'today',tone:'info'},{label:'Failed Jobs',value:'6',note:'retry queued',tone:'risk'},{label:'Sheets Sync',value:'Live',note:'last 19 sec',tone:'ok'},{label:'Active Users',value:'216',note:'web + mobile',tone:'info'}]}/><div className="card config"><label>Apps Script Web App URL</label><div><input value={apiUrl} onChange={e=>setApiUrlState(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec"/><button onClick={saveUrl}>Save & Ping</button></div></div><div className="grid two"><Table title="Google Sheets Backend Map" columns={['sheet','records','status']} rows={[{sheet:'Crew_Master',records:'1,284',status:'OK'},{sheet:'Roster_Published',records:'38,402',status:'OK'},{sheet:'CheckIns',records:'912',status:'OK'},{sheet:'Recovery_Cases',records:'208',status:'OK'},{sheet:'Audit_Log',records:'87,112',status:'OK'}]}/><Table title="Apps Script API Monitor" columns={['endpoint','latency','status']} rows={[{endpoint:'/crew/login',latency:'280ms',status:'OK'},{endpoint:'/roster/get',latency:'310ms',status:'OK'},{endpoint:'/checkin/post',latency:'255ms',status:'OK'},{endpoint:'/absence/post',latency:'420ms',status:'OK'},{endpoint:'/notify',latency:'Retry',status:'Warn'}]}/></div></>; }
+
+function useJuneKpiRange(defaultKpi) {
+  const [startDate,setStartDate]=useState('2026-06-01');
+  const [endDate,setEndDate]=useState('2026-06-30');
+  const [selectedKpi,setSelectedKpi]=useState(defaultKpi);
+  const range=getOpsRange(startDate,endDate);
+  return { startDate, endDate, setStartDate, setEndDate, selectedKpi, setSelectedKpi, range };
+}
+
+function KpiDrivenScreen({ state, items, tableConfigs, children }) {
+  const cfg=tableConfigs[state.selectedKpi];
+  return <>
+    <DateRangePicker startDate={state.startDate} endDate={state.endDate} setStartDate={state.setStartDate} setEndDate={state.setEndDate}/>
+    <Kpis items={items.map(item => ({...item, selected: item.label === state.selectedKpi}))} onSelect={k=>state.setSelectedKpi(k.label)}/>
+    {children}
+    <Table title={cfg.title} columns={cfg.columns} rows={cfg.rows} actions={<button className="downloadBtn" onClick={()=>exportCsv(`${state.selectedKpi.toLowerCase().replaceAll(' ','-')}-${state.startDate}-to-${state.endDate}.csv`, cfg.rows)}><Download size={15}/> Download CSV</button>}/>
+  </>;
+}
+
+function Crew() {
+  const state=useJuneKpiRange('Active Crew');
+  const expiringCrew=mockData.crew.filter(crew => crew.status.includes('expiring') || crew.medical === 'Expiring' || crew.training.includes('due'));
+  const qualifiedCrew=mockData.crew.filter(crew => crew.status === 'Ready' && crew.medical === 'Valid');
+  const dataGapCrew=mockData.crew.filter(crew => crew.license === 'N/A' || crew.status !== 'Ready');
+  const items=[{label:'Active Crew',value:mockData.crew.length,note:`${state.range.days.length} June day(s) selected`,tone:'info'},{label:'Expiring Docs',value:expiringCrew.length,note:'within June review window',tone:'warn'},{label:'Qualified Pool',value:`${Math.round((qualifiedCrew.length/mockData.crew.length)*100)}%`,note:'eligible for schedule',tone:'ok'},{label:'Data Gaps',value:dataGapCrew.length,note:'maker-checker queue',tone:'risk'}];
+  const tableConfigs={
+    'Active Crew': { title:'Crew 360 Active Crew Results', columns:['crewId','name','rank','base','fleet','status','medical','license','training'], rows:mockData.crew },
+    'Expiring Docs': { title:'Crew 360 Expiring Document Results', columns:['crewId','name','rank','base','fleet','status','medical','license','training'], rows:expiringCrew },
+    'Qualified Pool': { title:'Crew 360 Qualified Pool Results', columns:['crewId','name','rank','base','fleet','status','medical','license','training'], rows:qualifiedCrew },
+    'Data Gaps': { title:'Crew 360 Data Gap Results', columns:['crewId','name','rank','base','fleet','status','medical','license','training'], rows:dataGapCrew }
+  };
+  return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><div className="grid two"><Gantt title="Qualification & Validity Timeline" rows={8}/><MiniChart title="June Crew Readiness Trend"/></div></KpiDrivenScreen>;
+}
+function Ops() {
+  const state=useJuneKpiRange('Due Check-ins');
+  const due=state.range.checkins;
+  const late=due.filter(row => row.status === 'Late');
+  const noShowRisk=state.range.exceptions.filter(row => row.type === 'No-show');
+  const mcReview=state.range.exceptions.filter(row => row.type === 'Medical review');
+  const items=[{label:'Due Check-ins',value:due.length,note:'selected June range',tone:'info'},{label:'Late',value:late.length,note:'escalated',tone:'warn'},{label:'No-show Risk',value:noShowRisk.length,note:'recovery ready',tone:'risk'},{label:'MC Review',value:mcReview.length,note:'pending OCC',tone:'info'}];
+  const tableConfigs={
+    'Due Check-ins': { title:'Due Check-in Results', columns:['date','crew','flight','report','actual','status','evidence'], rows:due },
+    'Late': { title:'Late Check-in Results', columns:['date','crew','flight','report','actual','status','evidence'], rows:late },
+    'No-show Risk': { title:'No-show Risk Results', columns:['date','type','crew','flight','sla','priority','owner'], rows:noShowRisk },
+    'MC Review': { title:'Medical Certificate Review Results', columns:['date','type','crew','flight','sla','priority','owner'], rows:mcReview }
+  };
+  return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><div className="grid two"><MiniChart title="June Attendance Trend"/><Table title="Absence Desk" columns={['caseId','issue','flight','priority','status']} rows={mockData.recoveryCases}/></div></KpiDrivenScreen>;
+}
+function Recovery() {
+  const state=useJuneKpiRange('Disruptions');
+  const disruptions=state.range.exceptions.filter(row => row.priority !== 'Low');
+  const reservePool=mockData.crew.filter(crew => ['Ready','Standby'].includes(crew.status));
+  const bestOptions=[{crew:'CPT Amir',why:'same base, rest OK',score:96},{crew:'CPT Shafiq',why:'reserve, fleet OK',score:91},{crew:'CPT Nadia',why:'legal but low rest',score:79}];
+  const protectedFlights=state.range.flights.filter(row => row.status === 'Crewed');
+  const items=[{label:'Disruptions',value:disruptions.length,note:'active cases',tone:'risk'},{label:'Reserve Pool',value:reservePool.length,note:'available in June range',tone:'ok'},{label:'Best Option ETA',value:'14m',note:'legal replacement',tone:'info'},{label:'OTP Protected',value:protectedFlights.length,note:'flights saved',tone:'info'}];
+  const tableConfigs={
+    'Disruptions': { title:'Recovery Disruption Results', columns:['date','type','crew','flight','sla','priority','owner'], rows:disruptions },
+    'Reserve Pool': { title:'Available Reserve Pool Results', columns:['crewId','name','rank','base','fleet','status'], rows:reservePool },
+    'Best Option ETA': { title:'Best Replacement Option Results', columns:['crew','why','score'], rows:bestOptions },
+    'OTP Protected': { title:'OTP Protected Flight Results', columns:['date','flight','sector','std','sta','aircraft','need','status'], rows:protectedFlights }
+  };
+  return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><div className="grid two"><Table title="Recovery Cases" columns={['caseId','issue','flight','priority','status']} rows={mockData.recoveryCases}/><Gantt title="Before / After Recovery Timeline" rows={4}/></div></KpiDrivenScreen>;
+}
+function Optimizer() {
+  const state=useJuneKpiRange('Scenario A Cost');
+  const scenarioRows=[{metric:'Open trips',base:19,optimized:3},{metric:'Overtime hrs',base:420,optimized:278},{metric:'Standby days',base:188,optimized:172},{metric:'Free weekends equity',base:'61%',optimized:'83%'},{metric:'Line checks due',base:14,optimized:4}];
+  const fatigueRows=state.range.exceptions.filter(row => ['Rest risk','Medical review'].includes(row.type));
+  const preferenceRows=mockData.crew.map(crew => ({crewId:crew.crewId,name:crew.name,rank:crew.rank,base:crew.base,preference:'Granted',stability:`${state.range.avgStability}%`}));
+  const items=[{label:'Scenario A Cost',value:'MYR 1.82M',note:`${state.range.days.length} June day(s) baseline`,tone:'info'},{label:'Scenario B Cost',value:'MYR 1.75M',note:'4.1% saving',tone:'ok'},{label:'Preference Grant',value:'74%',note:'within stability cap',tone:'info'},{label:'Fatigue Risk',value:fatigueRows.length,note:'warnings in range',tone:'warn'}];
+  const tableConfigs={
+    'Scenario A Cost': { title:'Scenario A Baseline Results', columns:['metric','base','optimized'], rows:scenarioRows },
+    'Scenario B Cost': { title:'Scenario B Optimized Results', columns:['metric','base','optimized'], rows:scenarioRows },
+    'Preference Grant': { title:'Preference Grant Results', columns:['crewId','name','rank','base','preference','stability'], rows:preferenceRows },
+    'Fatigue Risk': { title:'Fatigue Risk Results', columns:['date','type','crew','flight','sla','priority','owner'], rows:fatigueRows }
+  };
+  return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><div className="grid two"><MiniChart title="Annual Block Hours Distribution"/><Gantt title="Optimization Impact Preview" rows={5}/></div></KpiDrivenScreen>;
+}
+function Rules() {
+  const state=useJuneKpiRange('Rules Checked');
+  const hardBlocks=mockData.rules.filter(rule => rule.severity === 'Hard' && rule.result === 'Fail');
+  const softWarnings=mockData.rules.filter(rule => rule.severity === 'Soft' || rule.result === 'Warn');
+  const overrides=state.range.exceptions.filter(row => row.priority === 'Med').slice(0, 20).map(row => ({...row, overrideReason:'Supervisor approval'}));
+  const items=[{label:'Rules Checked',value:state.range.flights.length + state.range.checkins.length,note:'selected June roster build',tone:'info'},{label:'Hard Blocks',value:hardBlocks.length,note:'must resolve',tone:'risk'},{label:'Soft Warnings',value:softWarnings.length,note:'review required',tone:'warn'},{label:'Overrides',value:overrides.length,note:'reason captured',tone:'info'}];
+  const tableConfigs={
+    'Rules Checked': { title:'Rules Checked Results', columns:['rule','result','action','severity'], rows:mockData.rules },
+    'Hard Blocks': { title:'Hard Block Results', columns:['rule','result','action','severity'], rows:hardBlocks },
+    'Soft Warnings': { title:'Soft Warning Results', columns:['rule','result','action','severity'], rows:softWarnings },
+    'Overrides': { title:'Override Results', columns:['date','type','crew','flight','priority','owner','overrideReason'], rows:overrides }
+  };
+  return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><Table title="Rule Configuration Preview" columns={['parameter','value','type']} rows={[{parameter:'Min rest',value:'12h',type:'Hard'},{parameter:'Expiry alert',value:'90 days',type:'Soft'},{parameter:'Max consecutive duty',value:'6',type:'Hard'},{parameter:'Check-in window',value:'90m',type:'Soft'}]}/></KpiDrivenScreen>;
+}
+function Reports() {
+  const state=useJuneKpiRange('Utilization');
+  const utilizationRows=mockData.crew.map((crew, index) => ({crewId:crew.crewId,name:crew.name,rank:crew.rank,base:crew.base,utilization:`${72 + index * 3}%`}));
+  const overtimeRows=state.range.exceptions.filter(row => row.type === 'Rest risk');
+  const unassignedRows=state.range.flights.filter(row => ['Missing CC','Open trip'].includes(row.status));
+  const payrollRows=state.range.checkins.filter(row => row.status !== 'Pending');
+  const items=[{label:'Utilization',value:'76%',note:'fleet weighted',tone:'info'},{label:'Overtime',value:overtimeRows.length,note:'rest risk proxy',tone:'ok'},{label:'Unassigned Trips',value:unassignedRows.length,note:'after optimizer',tone:'warn'},{label:'Payroll Ready',value:`${Math.round((payrollRows.length/state.range.checkins.length)*100)}%`,note:'selected range',tone:'ok'}];
+  const tableConfigs={
+    'Utilization': { title:'Crew Utilization Results', columns:['crewId','name','rank','base','utilization'], rows:utilizationRows },
+    'Overtime': { title:'Overtime / Rest Risk Results', columns:['date','type','crew','flight','sla','priority','owner'], rows:overtimeRows },
+    'Unassigned Trips': { title:'Unassigned Trip Results', columns:['date','flight','sector','std','sta','aircraft','need','status'], rows:unassignedRows },
+    'Payroll Ready': { title:'Payroll Ready Check-in Results', columns:['date','crew','flight','report','actual','status','evidence'], rows:payrollRows }
+  };
+  return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><div className="grid two"><MiniChart title="Crew Utilization by Rank"/><MiniChart title="Standby and Overtime Trend"/></div></KpiDrivenScreen>;
+}
+function Backend({apiUrl,setApiUrlState,saveUrl}) {
+  const state=useJuneKpiRange('Webhook Calls');
+  const sheetRows=[{sheet:'Crew_Master',records:mockData.crew.length,status:'OK'},{sheet:'Roster_Published',records:state.range.flights.length,status:'OK'},{sheet:'CheckIns',records:state.range.checkins.length,status:'OK'},{sheet:'Recovery_Cases',records:state.range.exceptions.length,status:'OK'},{sheet:'Audit_Log',records:state.range.days.length * 42,status:'OK'}];
+  const apiRows=[{endpoint:'/crew/login',latency:'280ms',status:'OK'},{endpoint:'/roster/get',latency:'310ms',status:'OK'},{endpoint:'/checkin/post',latency:'255ms',status:'OK'},{endpoint:'/absence/post',latency:'420ms',status:'OK'},{endpoint:'/notify',latency:'Retry',status:'Warn'}];
+  const failedRows=apiRows.filter(row => row.status !== 'OK');
+  const items=[{label:'Webhook Calls',value:state.range.days.length * 161,note:'selected June range',tone:'info'},{label:'Failed Jobs',value:failedRows.length,note:'retry queued',tone:'risk'},{label:'Sheets Sync',value:'Live',note:'June workbook sync',tone:'ok'},{label:'Active Users',value:mockData.crew.length + 31,note:'web + mobile',tone:'info'}];
+  const tableConfigs={
+    'Webhook Calls': { title:'Webhook Call Results', columns:['endpoint','latency','status'], rows:apiRows },
+    'Failed Jobs': { title:'Failed Job Results', columns:['endpoint','latency','status'], rows:failedRows },
+    'Sheets Sync': { title:'Sheets + Workbook Sync Results', columns:['sheet','records','status'], rows:sheetRows },
+    'Active Users': { title:'Active User Results', columns:['crewId','name','rank','base','fleet','status'], rows:mockData.crew }
+  };
+  return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><div className="card config"><label>Apps Script Web App URL</label><div><input value={apiUrl} onChange={e=>setApiUrlState(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec"/><button onClick={saveUrl}>Save & Ping</button></div></div><div className="grid two"><Table title="Google Sheets Backend Map" columns={['sheet','records','status']} rows={sheetRows}/><Table title="Apps Script API Monitor" columns={['endpoint','latency','status']} rows={apiRows}/></div></KpiDrivenScreen>;
+}
 function Copilot() { const [q,setQ]=useState('Show flights with missing crew and recommend recovery'); const [answer,setAnswer]=useState('Ask a question to search across roster, crew, check-ins, exceptions and the acronym glossary.'); async function ask(){ const glossaryHit = glossaryAnswer(q); const res=await callAcms('aiCopilot',{question:q, glossary: glossaryTerms}); setAnswer(res?.answer || (glossaryHit.includes('could not find') ? 'Demo answer: 3 flights have crew gaps. Prioritize FY2176 missing CC, FY3124 no-show CPT and FY4020 delay duty risk. Recommended action is to call up reserve CPT Amir, confirm CC standby pool, then republish affected roster version.' : glossaryHit)); } return <div className="card copilot"><div className="cardTitle">AI Copilot</div><div className="searchbar"><Search size={18}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Ask about rosters, recovery, KPIs or an acronym..."/><button onClick={ask}>Ask</button></div><div className="answer">{answer}</div><div className="quickQs">{['What does FDP mean?','Summarize open exceptions','Who has license expiring in 30 days?','Explain recovery option for FY3124','Draft OCC briefing'].map(x=><button key={x} onClick={()=>setQ(x)}>{x}</button>)}</div></div>; }
 
 function Glossary() {
