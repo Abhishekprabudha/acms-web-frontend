@@ -16,7 +16,7 @@ const nav = [
   { key: 'optimizer', label: 'Scenario Lab', icon: Activity },
   { key: 'rules', label: 'Rules', icon: ShieldCheck },
   { key: 'reports', label: 'Analytics', icon: FileText },
-  { key: 'backend', label: 'Sheets + Workbook', icon: Database },
+  { key: 'backend', label: 'Database / API', icon: Database },
   { key: 'copilot', label: 'AI Copilot', icon: Bot },
   { key: 'admin', label: 'Admin', icon: Settings },
   { key: 'glossary', label: 'Glossary', icon: BookOpen }
@@ -36,7 +36,7 @@ const screenMeta = {
   optimizer: { id: 'W14', title: 'Optimizer Scenario Lab', subtitle: 'Compare roster alternatives before publishing', features: ['Scenario A/B comparison', 'Cost, overtime, stability and preference grant', 'Equal distribution for standby, free weekends and block hours', 'Fatigue and legality impact preview'] },
   rules: { id: 'W15', title: 'Rule & Legality Console', subtitle: 'Validation, explainability and override controls', features: ['Hard blocks and soft warnings', 'Rule configuration preview', 'Override rights with mandatory reason capture', 'Audit-ready evidence of every rule execution'] },
   reports: { id: 'W22', title: 'Analytics & KPI Dashboard', subtitle: 'Management scorecards and exportable KPIs', features: ['Utilization, roster quality and governance trends', 'Recovery time and leave demand', 'Training expiry and check-in compliance', 'Payroll readiness and KPI snapshots'] },
-  backend: { id: 'W25/W26', title: 'Google Sheets + Workbook Monitor', subtitle: 'Webhook health and backend sheet governance', features: ['Endpoint status, latency and failed calls', 'Google Sheet schema and record count monitoring', 'Retry queue and payload inspection', 'Backup and trigger status'] },
+  backend: { id: 'W25/W26', title: 'Database + API Monitor', subtitle: 'Webhook health and backend sheet governance', features: ['Endpoint status, latency and failed calls', 'Google Sheet schema and record count monitoring', 'Retry queue and payload inspection', 'Backup and trigger status'] },
   copilot: { id: 'W29', title: 'AI Copilot & Natural Language Search', subtitle: 'Assistant layer for roster data and suggested actions', features: ['Ask roster questions', 'Summarize exceptions', 'Explain recommendations', 'Draft recovery notifications and daily briefings'] },
   admin: { id: 'W27/W28/W31', title: 'Administration Console', subtitle: 'Rules, RBAC, system settings and support controls', features: ['Rule thresholds and master data', 'User provisioning and access scopes', 'Trigger schedules and backups', 'Maintenance banner and environment flags'] },
   glossary: { id: 'W32', title: 'ACMS Glossary & Acronym Copilot', subtitle: 'Complete acronym dictionary with searchable AI assistance', features: ['Every ACMS acronym expanded with operational meaning', 'Category filters across crew, flight, compliance, systems and analytics', 'AI copilot answers questions using the glossary context', 'Quick reference for planners, OCC, admins and crew users'] }
@@ -478,10 +478,10 @@ function Backend({apiUrl,setApiUrlState,saveUrl}) {
   const tableConfigs={
     'Webhook Calls': { title:'Webhook Call Results', columns:['endpoint','latency','status'], rows:apiRows },
     'Failed Jobs': { title:'Failed Job Results', columns:['endpoint','latency','status'], rows:failedRows },
-    'Sheets Sync': { title:'Sheets + Workbook Sync Results', columns:['sheet','records','status'], rows:sheetRows },
+    'Sheets Sync': { title:'Database + API Sync Results', columns:['sheet','records','status'], rows:sheetRows },
     'Active Users': { title:'Active User Results', columns:['crewId','name','rank','base','fleet','status'], rows:mockData.crew }
   };
-  return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><div className="card config"><label>Apps Script Web App URL</label><div><input value={apiUrl} onChange={e=>setApiUrlState(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec"/><button onClick={saveUrl}>Save & Ping</button></div></div><div className="grid two"><Table title="Google Sheets Backend Map" columns={['sheet','records','status']} rows={sheetRows}/><Table title="Apps Script API Monitor" columns={['endpoint','latency','status']} rows={apiRows}/></div></KpiDrivenScreen>;
+  return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><div className="grid two"><Table title="Database Map" columns={['sheet','records','status']} rows={sheetRows}/><Table title="Api Monitor" columns={['endpoint','latency','status']} rows={apiRows}/></div></KpiDrivenScreen>;
 }
 function Copilot() { const [q,setQ]=useState('Show flights with missing crew and recommend recovery'); const [answer,setAnswer]=useState('Ask a question to search across roster, crew, check-ins, exceptions and the acronym glossary.'); async function ask(){ const glossaryHit = glossaryAnswer(q); const res=await callAcms('aiCopilot',{question:q, glossary: glossaryTerms}); setAnswer(res?.answer || (glossaryHit.includes('could not find') ? 'Demo answer: 3 flights have crew gaps. Prioritize FY2176 missing CC, FY3124 no-show CPT and FY4020 delay duty risk. Recommended action is to call up reserve CPT Amir, confirm CC standby pool, then republish affected roster version.' : glossaryHit)); } return <div className="card copilot"><div className="cardTitle">AI Copilot</div><div className="searchbar"><Search size={18}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Ask about rosters, recovery, KPIs or an acronym..."/><button onClick={ask}>Ask</button></div><div className="answer">{answer}</div><div className="quickQs">{['What does FDP mean?','Summarize open exceptions','Who has license expiring in 30 days?','Explain recovery option for FY3124','Draft OCC briefing'].map(x=><button key={x} onClick={()=>setQ(x)}>{x}</button>)}</div></div>; }
 
