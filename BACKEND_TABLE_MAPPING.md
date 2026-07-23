@@ -9,7 +9,9 @@ The Apps Script backend treats Google Sheets tabs as its operational tables. `se
 | `crewList` | Crew directory used by the connected frontend shell. |
 | `operationalList` with `sheet`, optional `startDate`, `endDate` | Read-only, allow-listed operational-table query for module integrations. |
 | `sheetSummary` | Record counts/status for the backend monitor. |
-| `schemaList` | Canonical headers for integration clients. |
+| `schemaList` | Canonical headers for every backend table; used by the universal frontend writer. |
+| `recordCreate` | Create a record in any allow-listed backend table using its canonical fields. |
+| `recordUpdate` | Update a record in any allow-listed backend table by a selected key field/value. |
 
 ## Module mapping
 

@@ -19,10 +19,12 @@ To add only the operational sheet tabs without replacing the allowance sample da
 | `ping` | — | Backend health and supported actions. |
 | `setupSeedData` | — | Creates/replaces the documented sample dataset. |
 | `setupOperationalSheets` | — | Creates the empty operational sheet tabs and header rows without changing existing data. |
-| `schemaList` | — | Returns the operational sheet names and header labels. |
+| `schemaList` | — | Returns every backend table and its canonical header labels. |
 | `sheetSummary` | — | Returns record counts/status for all backend tables. |
 | `operationalList` | `sheet`, optional `startDate`, `endDate` | Read-only rows from an allow-listed operational table. |
 | `crewList` | — | Active crew master records. |
+| `recordCreate` | `table`, `record` | Creates a record in any allow-listed backend table using its canonical schema and writes an audit entry. |
+| `recordUpdate` | `table`, `keyField`, `keyValue`, `record` | Updates fields on a matching record in any allow-listed backend table and writes an audit entry. |
 | `attendanceCreate` | `attendance.crewId`, `date`, `flight`, `reportTime`, `status` | Persists attendance and audit entry. |
 | `allowanceCalculate` | `month` (`YYYY-MM`) | Creates or returns the month’s draft run and calculated crew lines. |
 | `allowanceGetRun` | `runId` | Returns a run with its detail lines. |
@@ -47,4 +49,4 @@ See [`../BACKEND_TABLE_MAPPING.md`](../BACKEND_TABLE_MAPPING.md) for the fronten
 
 `setupOperationalSheets` creates these empty tabs for future live integrations: `Roster_Published`, `Flight_Operations`, `CheckIns`, `Operational_Exceptions`, `Recovery_Cases`, `Crew_Qualifications`, `Crew_Medical`, `Crew_Availability`, `Rules_Config`, `Rule_Evaluations`, `HR_Policies`, `User_RBAC`, `Roster_Changes`, `Optimizer_Scenarios`, and `Notifications`.
 
-The first row is the canonical column-label row. Use `schemaList` to retrieve the exact labels programmatically. The frontend automatically loads `Crew_Master` after a successful health check; the remaining module integrations can read their seeded table values through `operationalList` using the mapping document.
+The first row is the canonical column-label row. Use `schemaList` to retrieve the exact labels programmatically. The Database / API screen includes a universal table writer that loads this schema and can create or update records in every backend table; all generic writes are logged in `Audit_Log`. The frontend automatically loads `Crew_Master` after a successful health check; remaining module integrations can read their seeded table values through `operationalList` using the mapping document.
