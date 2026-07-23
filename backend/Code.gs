@@ -40,7 +40,7 @@ function doPost(e) {
   }
 }
 function json_(payload) { return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON); }
-function supportedActions_() { return ['ping','setupSeedData','setupOperationalSheets','schemaList','sheetSummary','operationalList','recordCreate','recordUpdate','crewList','allowanceCalculate','allowanceGetRun','allowanceListRuns','allowanceFinalize','attendanceCreate']; }
+function supportedActions_() { return ['ping','setupSeedData','setupOperationalSheets','schemaList','sheetSummary','operationalList','recordCreate','recordGet','recordUpdate','crewList','allowanceCalculate','allowanceGetRun','allowanceListRuns','allowanceFinalize','attendanceCreate']; }
 function dispatch_(r) {
   var action = r.action;
   if (action === 'ping') return { ok: true, service: 'ACMS allowance backend', actions: supportedActions_() };
@@ -50,6 +50,7 @@ function dispatch_(r) {
   if (action === 'sheetSummary') return sheetSummary_();
   if (action === 'operationalList') return operationalList_(r.sheet, r.startDate, r.endDate);
   if (action === 'recordCreate') return createRecord_(r.table, r.record || {}, r.actor || 'web');
+  if (action === 'recordGet') return getRecord_(r.table, r.keyField, r.keyValue);
   if (action === 'recordUpdate') return updateRecord_(r.table, r.keyField, r.keyValue, r.record || {}, r.actor || 'web');
   if (action === 'crewList') return { ok: true, crew: readObjects_(SHEETS.CREW) };
   if (action === 'allowanceCalculate') return calculateAllowance_(r.month, r.actor || 'web');
@@ -94,6 +95,15 @@ function createRecord_(table, record, actor) {
   var clean={}; headers.forEach(function(header) { clean[header]=record[header] === undefined ? '' : record[header]; });
   appendObject_(table, headers, clean); audit_('recordCreate', actor, {table:table, record:clean});
   return {ok:true, table:table, record:clean};
+}
+// Returns one allow-listed record so callers can confirm a write without reading an entire sheet.
+function getRecord_(table, keyField, keyValue) {
+  var headers=tableHeaders_(table); if (!headers) throw new Error('Unsupported table: '+table);
+  if (!keyField || keyValue === undefined || keyValue === '') throw new Error('keyField and keyValue are required');
+  if (headers.indexOf(keyField) < 0) throw new Error('Unknown key field: '+keyField);
+  var record=readObjects_(table).filter(function(row) { return String(row[keyField]) === String(keyValue); })[0];
+  if (!record) throw new Error('Record not found for '+keyField+'='+keyValue);
+  return {ok:true, table:table, record:record};
 }
 function updateRecord_(table, keyField, keyValue, record, actor) {
   var headers=tableHeaders_(table); if (!headers) throw new Error('Unsupported table: '+table);

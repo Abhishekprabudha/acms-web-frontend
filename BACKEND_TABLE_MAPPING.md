@@ -11,6 +11,7 @@ The Apps Script backend treats Google Sheets tabs as its operational tables. `se
 | `sheetSummary` | Record counts/status for the backend monitor. |
 | `schemaList` | Canonical headers for every backend table; used by the universal frontend writer. |
 | `recordCreate` | Create a record in any allow-listed backend table using its canonical fields. |
+| `recordGet` | Fetch one allow-listed record by a canonical key field; use after a write to verify the persisted value. |
 | `recordUpdate` | Update a record in any allow-listed backend table by a selected key field/value. |
 
 ## Module mapping

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build && npm run pages:fallbacks",
+    "test:backend": "node scripts/test-backend.mjs",
     "preview": "vite preview --host 0.0.0.0",
     "pages:fallbacks": "node scripts/create-pages-fallbacks.mjs"
   },

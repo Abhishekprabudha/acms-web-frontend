@@ -24,6 +24,7 @@ To add only the operational sheet tabs without replacing the allowance sample da
 | `operationalList` | `sheet`, optional `startDate`, `endDate` | Read-only rows from an allow-listed operational table. |
 | `crewList` | — | Active crew master records. |
 | `recordCreate` | `table`, `record` | Creates a record in any allow-listed backend table using its canonical schema and writes an audit entry. |
+| `recordGet` | `table`, `keyField`, `keyValue` | Returns one allow-listed record, including core tables, so a client can verify a completed write. |
 | `recordUpdate` | `table`, `keyField`, `keyValue`, `record` | Updates fields on a matching record in any allow-listed backend table and writes an audit entry. |
 | `attendanceCreate` | `attendance.crewId`, `date`, `flight`, `reportTime`, `status` | Persists attendance and audit entry. |
 | `allowanceCalculate` | `month` (`YYYY-MM`) | Creates or returns the month’s draft run and calculated crew lines. |
