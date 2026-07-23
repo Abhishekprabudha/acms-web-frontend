@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Activity, BookOpen, Bot, CalendarDays, CheckCircle2, ClipboardCheck, Database, Download, FileText, Gauge, Menu, Plane, Search, Settings, ShieldCheck, Users, Zap } from 'lucide-react';
+import { Activity, BookOpen, Bot, CalendarDays, CheckCircle2, ClipboardCheck, Database, Download, FileText, Gauge, Menu, Plane, Search, Settings, ShieldCheck, Users, WalletCards, UserRoundCheck, Zap } from 'lucide-react';
 import malaysiaAircraft from './assets/malaysia-airlines-aircraft.svg';
 import { getOpsRange, mockData } from './mockData.js';
 import { callAcms, getApiUrl, setApiUrl } from './api.js';
@@ -12,6 +12,9 @@ const nav = [
   { key: 'demand', label: 'Flight Demand', icon: Plane },
   { key: 'crew', label: 'Crew 360', icon: Users },
   { key: 'ops', label: 'Check-in / Absence', icon: ClipboardCheck },
+  { key: 'attendance', label: 'Crew Attendance', icon: UserRoundCheck },
+  { key: 'allowances', label: 'Allowances', icon: WalletCards },
+  { key: 'policies', label: 'HR Policies', icon: BookOpen },
   { key: 'recovery', label: 'Recovery', icon: Zap },
   { key: 'optimizer', label: 'Scenario Lab', icon: Activity },
   { key: 'rules', label: 'Rules', icon: ShieldCheck },
@@ -32,6 +35,9 @@ const screenMeta = {
   demand: { id: 'W03', title: 'Flight Demand Board', subtitle: 'Schedule demand and crew requirement control', features: ['Flight schedule import', 'Aircraft type and crew requirement mapping', 'Schedule deltas and missing demand flags', 'Export to roster build'] },
   crew: { id: 'W06', title: 'Crew Profile & Qualification 360', subtitle: 'Eligibility, documents and roster history', features: ['Eligibility snapshot across rank, base, fleet and route', 'License, medical, training and recency timeline', 'Document links and maker-checker updates', 'Data quality exceptions'] },
   ops: { id: 'W10/W11', title: 'Absence, No-show & Check-in Desk', subtitle: 'Day-of-operation attendance control', features: ['Due/pending/late/no-show tabs', 'Geo/Wi-Fi/device validation result', 'MC attachment review', 'Escalation and recovery trigger'] },
+  attendance: { id: 'W12', title: 'Crew Attendance', subtitle: 'Record duty attendance and post it to the ACMS backend', features: ['Crew member, date, flight and report-time capture', 'Present, late, absent and medical attendance states', 'Posts an auditable attendance record to the backend', 'Live submission status and recent attendance register'] },
+  allowances: { id: 'W23', title: 'Crew Allowances', subtitle: 'Monthly allowance calculation, review and payroll handoff', features: ['Cabin and flight crew entitlement calculation', 'Cabin layover bands: 2:00–2:59 = 1 hour; 3:00–11:00 = 3 hours', 'Draft, discrepancy and finalized payroll workflow', 'Backend-ready allowance runs and audit history'] },
+  policies: { id: 'W24', title: 'HR Policies', subtitle: 'Governed policy library for attendance and allowance administration', features: ['Versioned allowance, attendance and leave policies', 'Owner, effective date and approval status', 'Reference rules for configurable calculation engines', 'Backend-managed policy records and audit trail'] },
   recovery: { id: 'W13', title: 'Recovery Workbench', subtitle: 'Disruption resolution with ranked replacement options', features: ['Disruption case queue by priority and SLA', 'Ranked legal replacement recommendations', 'Reserve call-up and roster update actions', 'Audit of recommendation and override reason'] },
   optimizer: { id: 'W14', title: 'Optimizer Scenario Lab', subtitle: 'Compare roster alternatives before publishing', features: ['Scenario A/B comparison', 'Cost, overtime, stability and preference grant', 'Equal distribution for standby, free weekends and block hours', 'Fatigue and legality impact preview'] },
   rules: { id: 'W15', title: 'Rule & Legality Console', subtitle: 'Validation, explainability and override controls', features: ['Hard blocks and soft warnings', 'Rule configuration preview', 'Override rights with mandatory reason capture', 'Audit-ready evidence of every rule execution'] },
@@ -397,6 +403,41 @@ function Crew({ crewDirectory = mockData.crew }) {
   };
   return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><div className="grid two"><Gantt title="Qualification & Validity Timeline" rows={8}/><MiniChart title="June Crew Readiness Trend"/></div></KpiDrivenScreen>;
 }
+function Attendance({ crewDirectory = mockData.crew }) {
+  const [form, setForm] = useState({ crewId: crewDirectory[0]?.crewId || '', date: '2026-06-01', flight: 'FY3124', reportTime: '06:30', status: 'Present', evidence: 'Manual confirmation', notes: '' });
+  const [message, setMessage] = useState('Ready to save an attendance record to the ACMS backend.');
+  const [submitting, setSubmitting] = useState(false);
+  const [records, setRecords] = useState([]);
+  function update(field, value) { setForm(current => ({ ...current, [field]: value })); }
+  async function submit(event) {
+    event.preventDefault(); setSubmitting(true); setMessage('Saving attendance record…');
+    const payload = { attendance: { ...form, submittedAt: new Date().toISOString() } };
+    const result = await callAcms('attendanceCreate', payload);
+    if (result?.ok) {
+      const saved = result.attendance || { ...form, crew: form.crewId, actual: form.reportTime, id: result.id || `ATT-${Date.now()}` };
+      setRecords(current => [saved, ...current]); setMessage('Attendance saved to the backend and added to the audit trail.');
+    } else setMessage(`Backend save was not confirmed: ${result?.message || 'check the Database / API endpoint and retry.'}`);
+    setSubmitting(false);
+  }
+  const displayRows = records.length ? records : getOpsRange('2026-06-01', '2026-06-01').checkins.slice(0, 5);
+  return <><div className="grid two attendanceLayout"><form className="card dataForm" onSubmit={submit}><div className="cardTitle">Add attendance</div><p className="formHelp">This writes an attendance event using <b>attendanceCreate</b>; the backend should persist it in the shared attendance/check-in table.</p><label>Crew member<select value={form.crewId} onChange={e=>update('crewId',e.target.value)}>{crewDirectory.map(crew => <option key={crew.crewId} value={crew.crewId}>{crew.crewId} · {crew.name}</option>)}</select></label><div className="formRow"><label>Date<input type="date" value={form.date} onChange={e=>update('date',e.target.value)} required/></label><label>Flight<input value={form.flight} onChange={e=>update('flight',e.target.value)} placeholder="FY3124" required/></label></div><div className="formRow"><label>Report time<input type="time" value={form.reportTime} onChange={e=>update('reportTime',e.target.value)} required/></label><label>Attendance status<select value={form.status} onChange={e=>update('status',e.target.value)}>{['Present','Late','Absent','Medical leave','Leave'].map(item=><option key={item}>{item}</option>)}</select></label></div><label>Evidence<select value={form.evidence} onChange={e=>update('evidence',e.target.value)}>{['Manual confirmation','Geo validated','Wi-Fi validated','Device validated','Medical certificate'].map(item=><option key={item}>{item}</option>)}</select></label><label>Notes<textarea value={form.notes} onChange={e=>update('notes',e.target.value)} placeholder="Optional operational note"/></label><button className="downloadBtn" type="submit" disabled={submitting}>{submitting ? 'Saving…' : 'Save attendance to backend'}</button><div className="submissionMessage" role="status">{message}</div></form><div><Kpis items={[{label:'Records ready',value:records.length,note:'submitted this session',tone:'info'},{label:'Backend action',value:'POST',note:'attendanceCreate',tone:'ok'},{label:'Statuses',value:'5',note:'present through leave',tone:'info'},{label:'Audit trail',value:'On',note:'submission timestamp included',tone:'ok'}]}/><Table title="Recent attendance register" columns={['date','crew','flight','report','actual','status','evidence']} rows={displayRows}/></div></div></>;
+}
+
+const allowancePolicyRows = [
+  { crewType: 'Cabin crew', entitlement: 'Productivity allowance', trigger: 'Eligible roster productivity hours', rate: 'Configured in backend', status: 'Active' },
+  { crewType: 'Cabin crew', entitlement: 'Productivity incentive', trigger: 'Eligible roster productivity hours', rate: 'Configured in backend', status: 'Active' },
+  { crewType: 'Cabin crew', entitlement: 'Layover band', trigger: '2:00–2:59 hours = 1 hour; 3:00–11:00 hours = 3 hours', rate: 'Configured in backend', status: 'Active' },
+  { crewType: 'Flight crew', entitlement: 'Flight crew allowance', trigger: 'Actual roster and crew profile rule set', rate: 'Configured in backend', status: 'Active' },
+  { crewType: 'All crew', entitlement: 'Meal allowance', trigger: 'Configured entitlement criteria', rate: 'Configured in backend', status: 'Active' }
+];
+function Allowances({ crewDirectory = mockData.crew }) {
+  const [month, setMonth] = useState('2026-06'); const [runStatus, setRunStatus] = useState('Draft'); const [message, setMessage] = useState('Select a period, then request a backend calculation run.');
+  const crewRows = crewDirectory.map((crew, index) => ({ crewId: crew.crewId, name: crew.name, crewType: crew.rank === 'CC' ? 'Cabin crew' : 'Flight crew', productiveHours: 38 + index * 6, layoverBand: crew.rank === 'CC' ? (index % 2 ? '3 hours' : '1 hour') : 'N/A', reportStatus: runStatus }));
+  async function calculate() { setRunStatus('Calculating'); setMessage('Requesting allowance calculation from the backend…'); const result = await callAcms('allowanceCalculate', { month, status: 'Draft' }); if (result?.ok) { setRunStatus('Draft ready'); setMessage('Draft allowance run created. Review discrepancies before finalizing for payroll.'); } else { setRunStatus('Draft'); setMessage(`Calculation was not confirmed: ${result?.message || 'check the Database / API endpoint and retry.'}`); } }
+  return <><div className="card allowanceControl"><div><div className="cardTitle">Monthly allowance run</div><p>Calculations are driven by actual roster, crew master data and backend-managed rates—not hard-coded payment amounts.</p></div><label>Period<input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label><button className="downloadBtn" onClick={calculate}>Calculate draft</button><span className="submissionMessage">{message}</span></div><Kpis items={[{label:'Crew in run',value:crewDirectory.length,note:'cabin + flight crew',tone:'info'},{label:'Run status',value:runStatus, note:'review before payroll',tone:runStatus === 'Draft ready' ? 'ok' : 'warn'},{label:'Layover rule',value:'1h / 3h',note:'cabin crew band',tone:'info'},{label:'Distribution',value:'Queued',note:'after finalization',tone:'ok'}]}/><div className="grid two"><Table title="Allowance entitlement rules" columns={['crewType','entitlement','trigger','rate','status']} rows={allowancePolicyRows}/><Table title="Crew calculation preview" columns={['crewId','name','crewType','productiveHours','layoverBand','reportStatus']} rows={crewRows}/></div></>;
+}
+function Policies() { const rows=[{policy:'Allowance calculation & distribution',version:'1.0',owner:'Payroll / Crew Ops',effective:'2026-06-01',status:'Approved'},{policy:'Crew attendance and reporting',version:'1.0',owner:'OCC',effective:'2026-06-01',status:'Approved'},{policy:'Medical certificate review',version:'1.0',owner:'HR Operations',effective:'2026-06-01',status:'Review due'},{policy:'Absence and no-show escalation',version:'1.0',owner:'OCC',effective:'2026-06-01',status:'Approved'}]; return <><Kpis items={[{label:'Policies',value:rows.length,note:'controlled records',tone:'info'},{label:'Approved',value:rows.filter(row=>row.status==='Approved').length,note:'active for operations',tone:'ok'},{label:'Review due',value:1,note:'medical policy',tone:'warn'},{label:'Audit',value:'Enabled',note:'backend changes logged',tone:'ok'}]}/><Table title="HR policy register" columns={['policy','version','owner','effective','status']} rows={rows}/><div className="card policyNote"><div className="cardTitle">Allowance control note</div><p>Rates, entitlement thresholds, payroll approvals and distribution history must be maintained by authorized backend users. The allowance module applies the documented cabin layover bands while retaining the backend as the source of truth for all monetary values.</p></div></>; }
+
 function Ops() {
   const state=useJuneKpiRange('Due Check-ins');
   const due=state.range.checkins;
@@ -472,8 +513,8 @@ function Reports({ crewDirectory = mockData.crew }) {
 }
 function Backend({apiUrl,setApiUrlState,saveUrl, crewDirectory = mockData.crew}) {
   const state=useJuneKpiRange('Webhook Calls');
-  const sheetRows=[{sheet:'Crew_Master',records:crewDirectory.length,status:'OK'},{sheet:'Roster_Published',records:state.range.flights.length,status:'OK'},{sheet:'CheckIns',records:state.range.checkins.length,status:'OK'},{sheet:'Recovery_Cases',records:state.range.exceptions.length,status:'OK'},{sheet:'Audit_Log',records:state.range.days.length * 42,status:'OK'}];
-  const apiRows=[{endpoint:'/crew/login',latency:'280ms',status:'OK'},{endpoint:'/roster/get',latency:'310ms',status:'OK'},{endpoint:'/checkin/post',latency:'255ms',status:'OK'},{endpoint:'/absence/post',latency:'420ms',status:'OK'},{endpoint:'/notify',latency:'Retry',status:'Warn'}];
+  const sheetRows=[{sheet:'Crew_Master',records:crewDirectory.length,status:'OK'},{sheet:'Roster_Published',records:state.range.flights.length,status:'OK'},{sheet:'CheckIns',records:state.range.checkins.length,status:'OK'},{sheet:'Attendance',records:state.range.checkins.length,status:'OK'},{sheet:'Allowance_Runs',records:2,status:'OK'},{sheet:'Recovery_Cases',records:state.range.exceptions.length,status:'OK'},{sheet:'Audit_Log',records:state.range.days.length * 42,status:'OK'}];
+  const apiRows=[{endpoint:'/crew/login',latency:'280ms',status:'OK'},{endpoint:'/roster/get',latency:'310ms',status:'OK'},{endpoint:'/checkin/post',latency:'255ms',status:'OK'},{endpoint:'/absence/post',latency:'420ms',status:'OK'},{endpoint:'/attendance/create',latency:'310ms',status:'OK'},{endpoint:'/allowance/calculate',latency:'460ms',status:'OK'},{endpoint:'/notify',latency:'Retry',status:'Warn'}];
   const failedRows=apiRows.filter(row => row.status !== 'OK');
   const items=[{label:'Webhook Calls',value:state.range.days.length * 161,note:'selected June range',tone:'info'},{label:'Failed Jobs',value:failedRows.length,note:'retry queued',tone:'risk'},{label:'Sheets Sync',value:'Live',note:'June workbook sync',tone:'ok'},{label:'Active Users',value:crewDirectory.length + 31,note:'web + mobile',tone:'info'}];
   const tableConfigs={
@@ -591,6 +632,6 @@ function Admin({ crewDirectory = mockData.crew, setCrewDirectory }) {
 }
 function MiniChart({title}) { const bars=[30,62,48,82,68,96,74]; return <div className="card chart"><div className="cardTitle">{title}</div><div className="bars">{bars.map((b,i)=><span key={i} style={{height:b+'%'}}><small>W{i+1}</small></span>)}</div></div>; }
 
-function Screen(props) { const m = { command:<Command setActive={props.setActive}/>, flightsDetail:<DetailScreen type="flightsDetail"/>, exceptionsDetail:<DetailScreen type="exceptionsDetail"/>, checkinsDetail:<DetailScreen type="checkinsDetail"/>, stabilityDetail:<DetailScreen type="stabilityDetail"/>, roster:<Roster crewDirectory={props.crewDirectory}/>, demand:<Demand/>, crew:<Crew crewDirectory={props.crewDirectory}/>, ops:<Ops/>, recovery:<Recovery crewDirectory={props.crewDirectory}/>, optimizer:<Optimizer crewDirectory={props.crewDirectory}/>, rules:<Rules/>, reports:<Reports crewDirectory={props.crewDirectory}/>, backend:<Backend {...props}/>, copilot:<Copilot crewDirectory={props.crewDirectory}/>, admin:<Admin crewDirectory={props.crewDirectory} setCrewDirectory={props.setCrewDirectory}/>, glossary:<Glossary/> }; return <section className="screen">{m[props.active]}</section>; }
+function Screen(props) { const m = { command:<Command setActive={props.setActive}/>, flightsDetail:<DetailScreen type="flightsDetail"/>, exceptionsDetail:<DetailScreen type="exceptionsDetail"/>, checkinsDetail:<DetailScreen type="checkinsDetail"/>, stabilityDetail:<DetailScreen type="stabilityDetail"/>, roster:<Roster crewDirectory={props.crewDirectory}/>, demand:<Demand/>, crew:<Crew crewDirectory={props.crewDirectory}/>, ops:<Ops/>, attendance:<Attendance crewDirectory={props.crewDirectory}/>, allowances:<Allowances crewDirectory={props.crewDirectory}/>, policies:<Policies/>, recovery:<Recovery crewDirectory={props.crewDirectory}/>, optimizer:<Optimizer crewDirectory={props.crewDirectory}/>, rules:<Rules/>, reports:<Reports crewDirectory={props.crewDirectory}/>, backend:<Backend {...props}/>, copilot:<Copilot crewDirectory={props.crewDirectory}/>, admin:<Admin crewDirectory={props.crewDirectory} setCrewDirectory={props.setCrewDirectory}/>, glossary:<Glossary/> }; return <section className="screen">{m[props.active]}</section>; }
 
 createRoot(document.getElementById('root')).render(<Shell />);
