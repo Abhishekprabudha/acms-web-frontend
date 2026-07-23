@@ -1,4 +1,4 @@
-const DEFAULT_TIMEOUT_MS = 30000;
+const DEFAULT_TIMEOUT_MS = 120000;
 const API_URL_STORAGE_KEY = 'acms:appsScriptUrl';
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby4L4c3opMzAPeJMz2Ocqn5Twj4IjpTFT1BUp18EAnr6H9uhHsk5a9f-Q5nNCxQocFt/exec';
 
@@ -51,7 +51,7 @@ export async function callAcms(action, payload = {}) {
       ok: false,
       error: error.message,
       message: timedOut
-        ? 'The backend did not respond within 30 seconds. Check the Apps Script deployment and spreadsheet permissions.'
+        ? 'The backend did not respond within 120 seconds. Check the Apps Script deployment and spreadsheet permissions.'
         : 'Backend call failed. Check the /exec URL, Web App access setting, and browser network connection. Demo mode is still available.'
     };
   } finally {
