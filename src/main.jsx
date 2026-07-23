@@ -156,7 +156,10 @@ function Shell() {
   async function ping() {
     setSync('Checking...');
     const res = await callAcms('ping');
-    setSync(res?.ok ? 'All Sync' : 'Demo data');
+    if (!res?.ok) { setSync('Demo data'); return; }
+    const crewResult = await callAcms('crewList');
+    if (crewResult?.ok && crewResult.crew?.length) setCrewDirectory(crewResult.crew);
+    setSync(crewResult?.ok ? 'All Sync' : 'Connected');
   }
 
   useEffect(() => { ping(); }, []);
