@@ -156,15 +156,16 @@ function Shell() {
   async function ping() {
     setSync('Checking...');
     const res = await callAcms('ping');
-    if (!res?.ok) { setSync('Demo data'); return; }
+    if (!res?.ok) { setSync('Demo data'); return res; }
     const crewResult = await callAcms('crewList');
     if (crewResult?.ok && crewResult.crew?.length) setCrewDirectory(crewResult.crew);
     setSync(crewResult?.ok ? 'All Sync' : 'Connected');
+    return crewResult?.ok ? crewResult : res;
   }
 
   useEffect(() => { ping(); }, []);
 
-  function saveUrl() { setApiUrl(apiUrl); ping(); }
+  function saveUrl() { setApiUrl(apiUrl); setApiUrlState(getApiUrl()); return ping(); }
   function handleLogin() { sessionStorage.setItem('acms-authenticated', 'true'); setIsAuthenticated(true); }
   function handleLogout() { sessionStorage.removeItem('acms-authenticated'); setIsAuthenticated(false); setActive('command'); }
 
@@ -186,7 +187,7 @@ function Shell() {
         <div className="topActions"><button className="ghost" onClick={() => setActive('copilot')}><Bot size={16}/> Ask AI Copilot</button><button className="sync" onClick={ping}>{sync}</button><button className="ghost logoutBtn" onClick={handleLogout}>Sign out</button><div className="avatar">AI</div></div>
       </header>
       <FeatureStrip features={meta.features}/>
-      <Screen active={active} setActive={setActive} apiUrl={apiUrl} setApiUrlState={setApiUrlState} saveUrl={saveUrl} crewDirectory={crewDirectory} setCrewDirectory={setCrewDirectory}/>
+      <Screen active={active} setActive={setActive} apiUrl={apiUrl} setApiUrlState={setApiUrlState} saveUrl={saveUrl} ping={ping} sync={sync} crewDirectory={crewDirectory} setCrewDirectory={setCrewDirectory}/>
     </main>
   </div>;
 }
@@ -580,19 +581,43 @@ function DataWriter() {
   </section>;
 }
 
-function Backend({apiUrl,setApiUrlState,saveUrl, crewDirectory = mockData.crew}) {
+function Backend({apiUrl,setApiUrlState,saveUrl,ping,sync, crewDirectory = mockData.crew}) {
   const state=useJuneKpiRange('Webhook Calls');
-  const sheetRows=[{sheet:'Crew_Master',records:crewDirectory.length,status:'OK'},{sheet:'Roster_Published',records:state.range.flights.length,status:'OK'},{sheet:'CheckIns',records:state.range.checkins.length,status:'OK'},{sheet:'Attendance',records:state.range.checkins.length,status:'OK'},{sheet:'Allowance_Runs',records:2,status:'OK'},{sheet:'Recovery_Cases',records:state.range.exceptions.length,status:'OK'},{sheet:'Audit_Log',records:state.range.days.length * 42,status:'OK'}];
+  const [sheetRows, setSheetRows] = useState([]);
+  const [connectionMessage, setConnectionMessage] = useState('Save a Web App /exec URL, then test the connection before writing data.');
+  const [checking, setChecking] = useState(false);
+  const [seeding, setSeeding] = useState(false);
+  async function checkConnection() {
+    setChecking(true); setConnectionMessage('Checking Apps Script and loading workbook status…');
+    const health = await ping();
+    if (!health?.ok) { setConnectionMessage(health?.message || 'The backend could not be reached. Demo data remains available.'); setChecking(false); return; }
+    const summary = await callAcms('sheetSummary');
+    if (summary?.ok) {
+      setSheetRows(summary.sheets || []);
+      setConnectionMessage(`Connected. ${summary.sheets?.length || 0} Sheets tables are available for reading and writing.`);
+    } else setConnectionMessage(`Connected, but workbook status could not be read: ${summary?.message || 'retry the connection check.'}`);
+    setChecking(false);
+  }
+  async function initializeDemo() {
+    if (!window.confirm('Initialize the demo workbook? This replaces data in the seeded ACMS tables.')) return;
+    setSeeding(true); setConnectionMessage('Writing the June 2026 demo dataset to the backend…');
+    const result = await callAcms('setupSeedData');
+    if (result?.ok) { setConnectionMessage('Demo dataset written successfully. Refreshing workbook status…'); await checkConnection(); }
+    else setConnectionMessage(`Demo dataset was not written: ${result?.message || 'check the backend deployment and retry.'}`);
+    setSeeding(false);
+  }
   const apiRows=[{endpoint:'/crew/login',latency:'280ms',status:'OK'},{endpoint:'/roster/get',latency:'310ms',status:'OK'},{endpoint:'/checkin/post',latency:'255ms',status:'OK'},{endpoint:'/absence/post',latency:'420ms',status:'OK'},{endpoint:'/attendance/create',latency:'310ms',status:'OK'},{endpoint:'/allowance/calculate',latency:'460ms',status:'OK'},{endpoint:'/notify',latency:'Retry',status:'Warn'}];
   const failedRows=apiRows.filter(row => row.status !== 'OK');
-  const items=[{label:'Webhook Calls',value:state.range.days.length * 161,note:'selected June range',tone:'info'},{label:'Failed Jobs',value:failedRows.length,note:'retry queued',tone:'risk'},{label:'Sheets Sync',value:'Live',note:'June workbook sync',tone:'ok'},{label:'Active Users',value:crewDirectory.length + 31,note:'web + mobile',tone:'info'}];
+  const items=[{label:'Webhook Calls',value:state.range.days.length * 161,note:'selected June range',tone:'info'},{label:'Failed Jobs',value:failedRows.length,note:'retry queued',tone:'risk'},{label:'Sheets Sync',value:sync,note:sheetRows.length ? `${sheetRows.length} tables verified` : 'run connection check',tone:sync === 'All Sync' ? 'ok' : 'warn'},{label:'Active Users',value:crewDirectory.length + 31,note:'web + mobile',tone:'info'}];
   const tableConfigs={
     'Webhook Calls': { title:'Webhook Call Results', columns:['endpoint','latency','status'], rows:apiRows },
     'Failed Jobs': { title:'Failed Job Results', columns:['endpoint','latency','status'], rows:failedRows },
     'Sheets Sync': { title:'Database + API Sync Results', columns:['sheet','records','status'], rows:sheetRows },
     'Active Users': { title:'Active User Results', columns:['crewId','name','rank','base','fleet','status'], rows:crewDirectory }
   };
-  return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><DataWriter/><div className="grid two"><Table title="Database Map" columns={['sheet','records','status']} rows={sheetRows}/><Table title="Api Monitor" columns={['endpoint','latency','status']} rows={apiRows}/></div></KpiDrivenScreen>;
+  return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}>
+    <section className="card dataWriter"><div className="cardHeader"><div><div className="cardTitle">Apps Script connection</div><p className="formHelp">Use the deployed Google Apps Script Web App URL ending in <b>/exec</b>. Connection checks read the workbook before any data is written.</p></div><button className="viewAllBtn" type="button" onClick={checkConnection} disabled={checking}>{checking ? 'Checking…' : 'Test connection'}</button></div><div className="writerControls"><label>Web App URL<input value={apiUrl} onChange={event=>setApiUrlState(event.target.value)} placeholder="https://script.google.com/macros/s/.../exec"/></label><button className="downloadBtn" type="button" onClick={saveUrl}>Save URL</button><button className="ghost" type="button" onClick={initializeDemo} disabled={seeding || sync !== 'All Sync'}>{seeding ? 'Writing demo data…' : 'Initialize demo workbook'}</button></div><div className="submissionMessage" role="status">{connectionMessage}</div></section>
+    <DataWriter/><div className="grid two"><Table title="Database Map" columns={['sheet','records','status']} rows={sheetRows.length ? sheetRows : [{sheet:'Connection not checked',records:'—',status:'Demo mode'}]}/><Table title="Api Monitor" columns={['endpoint','latency','status']} rows={apiRows}/></div></KpiDrivenScreen>;
 }
 function buildCopilotAnswer(question, crewDirectory = mockData.crew) {
   const text = question.trim().toLowerCase();
