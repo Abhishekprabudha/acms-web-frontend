@@ -1,7 +1,32 @@
 /** ACMS Sheets backend. Set script property ACMS_SPREADSHEET_ID before deployment. */
 var SHEETS = {
   CREW: 'Crew_Master', ROSTER: 'Roster_Actual', RATES: 'Allowance_Rates',
-  RUNS: 'Allowance_Runs', LINES: 'Allowance_Lines', ATTENDANCE: 'Attendance', AUDIT: 'Audit_Log'
+  RUNS: 'Allowance_Runs', LINES: 'Allowance_Lines', ATTENDANCE: 'Attendance', AUDIT: 'Audit_Log',
+  ROSTER_PUBLISHED: 'Roster_Published', FLIGHT_OPERATIONS: 'Flight_Operations', CHECKINS: 'CheckIns',
+  EXCEPTIONS: 'Operational_Exceptions', RECOVERY: 'Recovery_Cases', QUALIFICATIONS: 'Crew_Qualifications',
+  MEDICAL: 'Crew_Medical', AVAILABILITY: 'Crew_Availability', RULES: 'Rules_Config',
+  RULE_EVALUATIONS: 'Rule_Evaluations', POLICIES: 'HR_Policies', USERS: 'User_RBAC',
+  ROSTER_CHANGES: 'Roster_Changes', OPTIMIZER: 'Optimizer_Scenarios', NOTIFICATIONS: 'Notifications'
+};
+
+// These sheets are additive operational schemas. They are intentionally empty when created;
+// importing or writing live operational data must not overwrite an existing workbook.
+var OPERATIONAL_SHEET_HEADERS = {
+  Roster_Published: ['rosterId','version','date','crewId','flight','dutyType','reportTime','releaseTime','base','fleet','status','publishedAt','publishedBy'],
+  Flight_Operations: ['flightId','date','flight','sector','std','sta','aircraft','need','status','gate','crewedPercent','sourceUpdatedAt'],
+  CheckIns: ['checkInId','date','crewId','flight','reportTime','actualTime','status','evidence','location','deviceId','submittedAt'],
+  Operational_Exceptions: ['exceptionId','date','type','crewId','flight','slaMinutes','priority','owner','status','openedAt','resolvedAt','notes'],
+  Recovery_Cases: ['caseId','exceptionId','issue','flight','priority','status','assignedCrewId','decision','score','openedAt','resolvedAt','owner','notes'],
+  Crew_Qualifications: ['qualificationId','crewId','fleet','qualificationType','validFrom','expiryDate','status','checkedAt','checkedBy'],
+  Crew_Medical: ['medicalId','crewId','certificateType','validFrom','expiryDate','status','documentUrl','reviewedAt','reviewedBy'],
+  Crew_Availability: ['availabilityId','crewId','date','availabilityStatus','startTime','endTime','reason','source','updatedAt'],
+  Rules_Config: ['ruleId','rule','parameter','value','type','severity','active','effectiveFrom','effectiveTo','updatedAt','updatedBy'],
+  Rule_Evaluations: ['evaluationId','rosterId','ruleId','date','crewId','flight','result','severity','action','overrideReason','evaluatedAt','evaluatedBy'],
+  HR_Policies: ['policyId','policy','version','owner','effective','status','documentUrl','approvedBy','approvedAt','reviewDueDate'],
+  User_RBAC: ['userId','email','name','role','scope','crewId','active','lastLoginAt','createdAt','updatedAt'],
+  Roster_Changes: ['changeId','rosterId','version','date','crewId','flight','field','oldValue','newValue','reason','changedAt','changedBy','approvedBy'],
+  Optimizer_Scenarios: ['scenarioId','name','periodStart','periodEnd','status','totalCost','openTrips','overtimeHours','preferenceGrantPercent','stabilityPercent','createdAt','createdBy'],
+  Notifications: ['notificationId','recipientUserId','channel','template','subject','payload','status','attemptCount','sentAt','createdAt','errorMessage']
 };
 
 function doGet() { return json_({ ok: true, service: 'ACMS allowance backend', actions: supportedActions_() }); }
@@ -15,11 +40,13 @@ function doPost(e) {
   }
 }
 function json_(payload) { return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON); }
-function supportedActions_() { return ['ping','setupSeedData','crewList','allowanceCalculate','allowanceGetRun','allowanceListRuns','allowanceFinalize','attendanceCreate']; }
+function supportedActions_() { return ['ping','setupSeedData','setupOperationalSheets','schemaList','crewList','allowanceCalculate','allowanceGetRun','allowanceListRuns','allowanceFinalize','attendanceCreate']; }
 function dispatch_(r) {
   var action = r.action;
   if (action === 'ping') return { ok: true, service: 'ACMS allowance backend', actions: supportedActions_() };
   if (action === 'setupSeedData') return setupSeedData_();
+  if (action === 'setupOperationalSheets') return setupOperationalSheets_(r.actor || 'web');
+  if (action === 'schemaList') return { ok: true, sheets: sheetSchemas_() };
   if (action === 'crewList') return { ok: true, crew: readObjects_(SHEETS.CREW) };
   if (action === 'allowanceCalculate') return calculateAllowance_(r.month, r.actor || 'web');
   if (action === 'allowanceGetRun') return getRun_(r.runId);
@@ -47,6 +74,15 @@ function readObjects_(name) {
 }
 function appendObject_(name, headers, obj) { ensureSheet_(name, headers).appendRow(headers.map(function (h) { return obj[h] === undefined ? '' : obj[h]; })); }
 function audit_(action, actor, detail) { appendObject_(SHEETS.AUDIT, ['timestamp','action','actor','detail'], { timestamp: new Date().toISOString(), action: action, actor: actor, detail: JSON.stringify(detail) }); }
+function sheetSchemas_() { return Object.keys(OPERATIONAL_SHEET_HEADERS).map(function(name) { return { name:name, headers:OPERATIONAL_SHEET_HEADERS[name] }; }); }
+function setupOperationalSheets_(actor) {
+  Object.keys(OPERATIONAL_SHEET_HEADERS).forEach(function(name) {
+    var sheet = ensureSheet_(name, OPERATIONAL_SHEET_HEADERS[name]);
+    sheet.setFrozenRows(1);
+  });
+  audit_('setupOperationalSheets', actor, { sheets:Object.keys(OPERATIONAL_SHEET_HEADERS) });
+  return { ok:true, message:'Operational sheets are ready. Existing data was not changed.', sheets:sheetSchemas_() };
+}
 
 function setupSeedData_() {
   var data = seedData_();
@@ -56,8 +92,9 @@ function setupSeedData_() {
     if (rows.length) sheet.getRange(2, 1, rows.length, headers.length).setValues(rows.map(function (r) { return headers.map(function (h) { return r[h]; }); }));
     sheet.setFrozenRows(1);
   });
+  setupOperationalSheets_('system');
   audit_('setupSeedData', 'system', { sheets: Object.keys(data) });
-  return { ok: true, message: 'Allowance datasets installed.', sheets: Object.keys(data) };
+  return { ok: true, message: 'Allowance datasets and operational sheet schemas installed.', sheets: Object.keys(data).concat(Object.keys(OPERATIONAL_SHEET_HEADERS)) };
 }
 function seedData_() { return {
   Crew_Master: [
