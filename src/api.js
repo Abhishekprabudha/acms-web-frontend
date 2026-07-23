@@ -1,6 +1,6 @@
 const DEFAULT_TIMEOUT_MS = 12000;
 const API_URL_STORAGE_KEY = 'acms:appsScriptUrl';
-const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwwoZOwGQ6mcpXYLe6WW-T2aekuS5PJjayqNH6Oe35k6GWNWxV20DuJqMqtvmhOBgis/exec';
+const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby4L4c3opMzAPeJMz2Ocqn5Twj4IjpTFT1BUp18EAnr6H9uhHsk5a9f-Q5nNCxQocFt/exec';
 
 function normalizeApiUrl(url) {
   const value = (url || '').trim();
