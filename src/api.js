@@ -2,12 +2,20 @@ const DEFAULT_TIMEOUT_MS = 12000;
 const API_URL_STORAGE_KEY = 'acms:appsScriptUrl';
 const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbysD1_vofk25eRdzBjXwnV_07n2MRW9yw_6818R_TTg6hmatB3th0l7-GpjOB1tdSLN/exec';
 
+function normalizeApiUrl(url) {
+  const value = (url || '').trim();
+  if (!value) return '';
+  // Apps Script's development URL requires editor authentication and cannot be
+  // used by the browser application. Keep the configured deployment on /exec.
+  return value.replace(/\/(dev|exec)\/?(?:\?.*)?$/, '/exec');
+}
+
 export function getApiUrl() {
-  return localStorage.getItem(API_URL_STORAGE_KEY) || import.meta.env.VITE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL;
+  return normalizeApiUrl(localStorage.getItem(API_URL_STORAGE_KEY) || import.meta.env.VITE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL);
 }
 
 export function setApiUrl(url) {
-  localStorage.setItem(API_URL_STORAGE_KEY, url || '');
+  localStorage.setItem(API_URL_STORAGE_KEY, normalizeApiUrl(url));
 }
 
 export async function callAcms(action, payload = {}) {
@@ -25,9 +33,27 @@ export async function callAcms(action, payload = {}) {
       signal: controller.signal
     });
     const text = await response.text();
-    try { return JSON.parse(text); } catch { return { ok: response.ok, raw: text }; }
+    try {
+      const result = JSON.parse(text);
+      return { ...result, httpStatus: response.status };
+    } catch {
+      return {
+        ok: false,
+        httpStatus: response.status,
+        message: response.ok
+          ? 'The endpoint did not return JSON. Confirm that the Apps Script Web App is deployed with access set to Anyone.'
+          : `Backend returned HTTP ${response.status}. Confirm the /exec deployment URL and Web App access setting.`
+      };
+    }
   } catch (error) {
-    return { ok: false, error: error.message, message: 'Backend call failed. Demo mode is still available.' };
+    const timedOut = error.name === 'AbortError';
+    return {
+      ok: false,
+      error: error.message,
+      message: timedOut
+        ? 'The backend did not respond within 12 seconds. Check the Apps Script deployment and spreadsheet permissions.'
+        : 'Backend call failed. Check the /exec URL, Web App access setting, and browser network connection. Demo mode is still available.'
+    };
   } finally {
     clearTimeout(timer);
   }

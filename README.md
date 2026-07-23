@@ -29,7 +29,7 @@ Open the local URL shown by Vite.
 VITE_APPS_SCRIPT_URL=https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec
 ```
 
-The client uses simple `text/plain` JSON POST requests for Apps Script compatibility.
+The client uses simple `text/plain` JSON POST requests for Apps Script compatibility. In **Database / API**, save the `/exec` URL and select **Test connection**; the page verifies the API and reads the live sheet summary before enabling the destructive **Initialize demo workbook** action. That action calls `setupSeedData` and replaces the seeded tables with the complete June 2026 demo dataset.
 
 ## GitHub Pages deployment
 
