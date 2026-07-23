@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Activity, BookOpen, Bot, CalendarDays, CheckCircle2, ClipboardCheck, Database, Download, FileText, Gauge, Menu, Plane, Search, Settings, ShieldCheck, Users, WalletCards, UserRoundCheck, Zap } from 'lucide-react';
+import { Activity, BookOpen, Bot, CalendarDays, CheckCircle2, ClipboardCheck, Download, FileText, Gauge, Menu, Plane, Search, Settings, ShieldCheck, Users, WalletCards, UserRoundCheck, Zap } from 'lucide-react';
 import malaysiaAircraft from './assets/malaysia-airlines-aircraft.svg';
 import { getOpsRange, mockData } from './mockData.js';
 import { callAcms, getApiUrl, setApiUrl } from './api.js';
@@ -8,18 +8,17 @@ import './styles.css';
 
 const nav = [
   { key: 'command', label: 'Command Center', icon: Gauge },
+  { key: 'attendance', label: 'Crew Attendance', icon: UserRoundCheck },
+  { key: 'allowances', label: 'Allowances', icon: WalletCards },
   { key: 'roster', label: 'Roster Editor', icon: CalendarDays },
   { key: 'demand', label: 'Flight Demand', icon: Plane },
   { key: 'crew', label: 'Crew 360', icon: Users },
   { key: 'ops', label: 'Check-in / Absence', icon: ClipboardCheck },
-  { key: 'attendance', label: 'Crew Attendance', icon: UserRoundCheck },
-  { key: 'allowances', label: 'Allowances', icon: WalletCards },
   { key: 'policies', label: 'HR Policies', icon: BookOpen },
   { key: 'recovery', label: 'Recovery', icon: Zap },
   { key: 'optimizer', label: 'Scenario Lab', icon: Activity },
   { key: 'rules', label: 'Rules', icon: ShieldCheck },
   { key: 'reports', label: 'Analytics', icon: FileText },
-  { key: 'backend', label: 'Database / API', icon: Database },
   { key: 'copilot', label: 'AI Copilot', icon: Bot },
   { key: 'admin', label: 'Admin', icon: Settings },
   { key: 'glossary', label: 'Glossary', icon: BookOpen }
