@@ -40,7 +40,7 @@ function doPost(e) {
   }
 }
 function json_(payload) { return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON); }
-function supportedActions_() { return ['ping','setupSeedData','setupOperationalSheets','schemaList','sheetSummary','operationalList','crewList','allowanceCalculate','allowanceGetRun','allowanceListRuns','allowanceFinalize','attendanceCreate']; }
+function supportedActions_() { return ['ping','setupSeedData','setupOperationalSheets','schemaList','sheetSummary','operationalList','recordCreate','recordUpdate','crewList','allowanceCalculate','allowanceGetRun','allowanceListRuns','allowanceFinalize','attendanceCreate']; }
 function dispatch_(r) {
   var action = r.action;
   if (action === 'ping') return { ok: true, service: 'ACMS allowance backend', actions: supportedActions_() };
@@ -49,6 +49,8 @@ function dispatch_(r) {
   if (action === 'schemaList') return { ok: true, sheets: sheetSchemas_() };
   if (action === 'sheetSummary') return sheetSummary_();
   if (action === 'operationalList') return operationalList_(r.sheet, r.startDate, r.endDate);
+  if (action === 'recordCreate') return createRecord_(r.table, r.record || {}, r.actor || 'web');
+  if (action === 'recordUpdate') return updateRecord_(r.table, r.keyField, r.keyValue, r.record || {}, r.actor || 'web');
   if (action === 'crewList') return { ok: true, crew: readObjects_(SHEETS.CREW) };
   if (action === 'allowanceCalculate') return calculateAllowance_(r.month, r.actor || 'web');
   if (action === 'allowanceGetRun') return getRun_(r.runId);
@@ -76,7 +78,34 @@ function readObjects_(name) {
 }
 function appendObject_(name, headers, obj) { ensureSheet_(name, headers).appendRow(headers.map(function (h) { return obj[h] === undefined ? '' : obj[h]; })); }
 function audit_(action, actor, detail) { appendObject_(SHEETS.AUDIT, ['timestamp','action','actor','detail'], { timestamp: new Date().toISOString(), action: action, actor: actor, detail: JSON.stringify(detail) }); }
-function sheetSchemas_() { return Object.keys(OPERATIONAL_SHEET_HEADERS).map(function(name) { return { name:name, headers:OPERATIONAL_SHEET_HEADERS[name] }; }); }
+var CORE_SHEET_HEADERS = {
+  Crew_Master: ['crewId','name','crewType','rank','base','fleet','status','medical','license','training','active'],
+  Roster_Actual: ['date','crewId','dutyType','productiveHours','layoverMinutes','mealEligible'],
+  Allowance_Rates: ['crewType','code','rate','effectiveFrom','active'],
+  Allowance_Runs: ['runId','month','status','createdAt','finalizedAt','totalAmount','crewCount'],
+  Allowance_Lines: ['runId','crewId','name','crewType','productiveHours','layoverMinutes','layoverCreditHours','mealCount','productivityAllowance','productivityIncentive','flightAllowance','mealAllowance','totalAmount','status'],
+  Attendance: ['id','crewId','date','flight','reportTime','status','evidence','notes','submittedAt'],
+  Audit_Log: ['timestamp','action','actor','detail']
+};
+function tableHeaders_(name) { return OPERATIONAL_SHEET_HEADERS[name] || CORE_SHEET_HEADERS[name]; }
+function sheetSchemas_() { return Object.keys(SHEETS).map(function(key) { var name=SHEETS[key]; return { name:name, headers:tableHeaders_(name) || [] }; }); }
+function createRecord_(table, record, actor) {
+  var headers=tableHeaders_(table); if (!headers) throw new Error('Unsupported table: '+table);
+  var clean={}; headers.forEach(function(header) { clean[header]=record[header] === undefined ? '' : record[header]; });
+  appendObject_(table, headers, clean); audit_('recordCreate', actor, {table:table, record:clean});
+  return {ok:true, table:table, record:clean};
+}
+function updateRecord_(table, keyField, keyValue, record, actor) {
+  var headers=tableHeaders_(table); if (!headers) throw new Error('Unsupported table: '+table);
+  if (!keyField || keyValue === undefined || keyValue === '') throw new Error('keyField and keyValue are required');
+  var sheet=ensureSheet_(table, headers), values=sheet.getDataRange().getValues(), keyColumn=values[0].indexOf(keyField);
+  if (keyColumn < 0) throw new Error('Unknown key field: '+keyField);
+  var rowIndex=values.findIndex(function(row,index) { return index > 0 && String(row[keyColumn]) === String(keyValue); });
+  if (rowIndex < 1) throw new Error('Record not found for '+keyField+'='+keyValue);
+  headers.forEach(function(header) { if (record[header] !== undefined) sheet.getRange(rowIndex+1, values[0].indexOf(header)+1).setValue(record[header]); });
+  var saved=readObjects_(table)[rowIndex-1]; audit_('recordUpdate', actor, {table:table, keyField:keyField, keyValue:keyValue, record:record});
+  return {ok:true, table:table, record:saved};
+}
 function setupOperationalSheets_(actor) {
   Object.keys(OPERATIONAL_SHEET_HEADERS).forEach(function(name) {
     var sheet = ensureSheet_(name, OPERATIONAL_SHEET_HEADERS[name]);

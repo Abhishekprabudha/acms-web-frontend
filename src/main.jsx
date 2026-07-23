@@ -534,6 +534,52 @@ function Reports({ crewDirectory = mockData.crew }) {
   };
   return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><div className="grid two"><MiniChart title="Crew Utilization by Rank"/><MiniChart title="Standby and Overtime Trend"/></div></KpiDrivenScreen>;
 }
+function DataWriter() {
+  const [schemas, setSchemas] = useState([]);
+  const [table, setTable] = useState('');
+  const [record, setRecord] = useState({});
+  const [mode, setMode] = useState('create');
+  const [keyField, setKeyField] = useState('');
+  const [keyValue, setKeyValue] = useState('');
+  const [message, setMessage] = useState('Load the backend schema to create or update records in any ACMS table.');
+  const [saving, setSaving] = useState(false);
+  const selected = schemas.find(item => item.name === table);
+
+  async function loadSchema() {
+    setMessage('Loading canonical table fields…');
+    const result = await callAcms('schemaList');
+    if (!result?.ok || !result.sheets?.length) { setMessage(`Schema load was not confirmed: ${result?.message || 'check the Apps Script endpoint and retry.'}`); return; }
+    setSchemas(result.sheets);
+    const first = result.sheets[0]; setTable(first.name); setRecord({}); setKeyField(first.headers[0] || ''); setKeyValue('');
+    setMessage(`${result.sheets.length} backend tables loaded. Select a table and enter its fields.`);
+  }
+  function selectTable(next) {
+    const schema = schemas.find(item => item.name === next);
+    setTable(next); setRecord({}); setKeyField(schema?.headers[0] || ''); setKeyValue('');
+  }
+  function setField(field, value) { setRecord(current => ({ ...current, [field]: value })); }
+  async function submit(event) {
+    event.preventDefault();
+    if (!selected) return;
+    setSaving(true); setMessage(`${mode === 'create' ? 'Creating' : 'Updating'} ${table} record…`);
+    const payload = mode === 'create' ? { table, record } : { table, keyField, keyValue, record };
+    const result = await callAcms(mode === 'create' ? 'recordCreate' : 'recordUpdate', payload);
+    setMessage(result?.ok ? `${table} record ${mode === 'create' ? 'created' : 'updated'} and recorded in Audit_Log.` : `Save was not confirmed: ${result?.message || 'check required fields and retry.'}`);
+    if (result?.ok && mode === 'create') setRecord({});
+    setSaving(false);
+  }
+
+  return <section className="card dataWriter">
+    <div className="cardHeader"><div><div className="cardTitle">Universal table writer</div><p className="formHelp">Uses the backend’s canonical schema, so every Sheets-backed ACMS table can be created or updated without hard-coded frontend fields.</p></div><button className="viewAllBtn" type="button" onClick={loadSchema}>Load table schema</button></div>
+    {selected && <form onSubmit={submit}>
+      <div className="writerControls"><label>Table<select value={table} onChange={e=>selectTable(e.target.value)}>{schemas.map(item => <option key={item.name}>{item.name}</option>)}</select></label><label>Operation<select value={mode} onChange={e=>setMode(e.target.value)}><option value="create">Create record</option><option value="update">Update record</option></select></label>{mode === 'update' && <><label>Match field<select value={keyField} onChange={e=>setKeyField(e.target.value)}>{selected.headers.map(header => <option key={header}>{header}</option>)}</select></label><label>Match value<input value={keyValue} onChange={e=>setKeyValue(e.target.value)} required placeholder="Existing value"/></label></>}</div>
+      <div className="writerFields">{selected.headers.map(header => <label key={header}>{header}<input value={record[header] ?? ''} onChange={e=>setField(header, e.target.value)} placeholder={header}/></label>)}</div>
+      <button className="downloadBtn" type="submit" disabled={saving}>{saving ? 'Saving…' : `${mode === 'create' ? 'Create' : 'Update'} ${table} record`}</button>
+    </form>}
+    <div className="submissionMessage" role="status">{message}</div>
+  </section>;
+}
+
 function Backend({apiUrl,setApiUrlState,saveUrl, crewDirectory = mockData.crew}) {
   const state=useJuneKpiRange('Webhook Calls');
   const sheetRows=[{sheet:'Crew_Master',records:crewDirectory.length,status:'OK'},{sheet:'Roster_Published',records:state.range.flights.length,status:'OK'},{sheet:'CheckIns',records:state.range.checkins.length,status:'OK'},{sheet:'Attendance',records:state.range.checkins.length,status:'OK'},{sheet:'Allowance_Runs',records:2,status:'OK'},{sheet:'Recovery_Cases',records:state.range.exceptions.length,status:'OK'},{sheet:'Audit_Log',records:state.range.days.length * 42,status:'OK'}];
@@ -546,7 +592,7 @@ function Backend({apiUrl,setApiUrlState,saveUrl, crewDirectory = mockData.crew})
     'Sheets Sync': { title:'Database + API Sync Results', columns:['sheet','records','status'], rows:sheetRows },
     'Active Users': { title:'Active User Results', columns:['crewId','name','rank','base','fleet','status'], rows:crewDirectory }
   };
-  return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><div className="grid two"><Table title="Database Map" columns={['sheet','records','status']} rows={sheetRows}/><Table title="Api Monitor" columns={['endpoint','latency','status']} rows={apiRows}/></div></KpiDrivenScreen>;
+  return <KpiDrivenScreen state={state} items={items} tableConfigs={tableConfigs}><DataWriter/><div className="grid two"><Table title="Database Map" columns={['sheet','records','status']} rows={sheetRows}/><Table title="Api Monitor" columns={['endpoint','latency','status']} rows={apiRows}/></div></KpiDrivenScreen>;
 }
 function buildCopilotAnswer(question, crewDirectory = mockData.crew) {
   const text = question.trim().toLowerCase();
