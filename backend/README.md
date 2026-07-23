@@ -8,7 +8,7 @@ This Google Apps Script web app persists crew, actual roster duties, rates, allo
 2. Copy `Code.gs` and `appsscript.json` into the project.
 3. In **Project Settings → Script properties**, set `ACMS_SPREADSHEET_ID` to the spreadsheet ID.
 4. Deploy as a Web app and copy its `/exec` URL into `VITE_APPS_SCRIPT_URL` or the application's Admin API URL field.
-5. POST `{ "action": "setupSeedData" }` once to create the sheets and June 2026 sample data. This also creates the empty operational sheet schemas.
+5. POST `{ "action": "setupSeedData" }` once to create the sheets and June 2026 sample data. This also replaces every seeded operational table with a complete June 2026 demo dataset.
 
 To add only the operational sheet tabs without replacing the allowance sample data, POST `{ "action": "setupOperationalSheets" }`. This action is additive: it never clears an existing sheet.
 
@@ -20,6 +20,8 @@ To add only the operational sheet tabs without replacing the allowance sample da
 | `setupSeedData` | — | Creates/replaces the documented sample dataset. |
 | `setupOperationalSheets` | — | Creates the empty operational sheet tabs and header rows without changing existing data. |
 | `schemaList` | — | Returns the operational sheet names and header labels. |
+| `sheetSummary` | — | Returns record counts/status for all backend tables. |
+| `operationalList` | `sheet`, optional `startDate`, `endDate` | Read-only rows from an allow-listed operational table. |
 | `crewList` | — | Active crew master records. |
 | `attendanceCreate` | `attendance.crewId`, `date`, `flight`, `reportTime`, `status` | Persists attendance and audit entry. |
 | `allowanceCalculate` | `month` (`YYYY-MM`) | Creates or returns the month’s draft run and calculated crew lines. |
@@ -37,8 +39,12 @@ To add only the operational sheet tabs without replacing the allowance sample da
 
 All amounts are returned in the rate table's configured currency. Review and approve rates before payroll use.
 
+## Frontend module map
+
+See [`../BACKEND_TABLE_MAPPING.md`](../BACKEND_TABLE_MAPPING.md) for the frontend-module-to-table mapping, query actions, and seed volumes.
+
 ## Operational sheet schemas
 
 `setupOperationalSheets` creates these empty tabs for future live integrations: `Roster_Published`, `Flight_Operations`, `CheckIns`, `Operational_Exceptions`, `Recovery_Cases`, `Crew_Qualifications`, `Crew_Medical`, `Crew_Availability`, `Rules_Config`, `Rule_Evaluations`, `HR_Policies`, `User_RBAC`, `Roster_Changes`, `Optimizer_Scenarios`, and `Notifications`.
 
-The first row is the canonical column-label row. Use `schemaList` to retrieve the exact labels programmatically. The current React operations, recovery, rules, optimizer, policies, and admin screens still use demo data; connecting them to these sheets requires corresponding Apps Script read/write actions and frontend API calls.
+The first row is the canonical column-label row. Use `schemaList` to retrieve the exact labels programmatically. The frontend automatically loads `Crew_Master` after a successful health check; the remaining module integrations can read their seeded table values through `operationalList` using the mapping document.
