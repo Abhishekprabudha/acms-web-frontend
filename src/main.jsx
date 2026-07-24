@@ -432,12 +432,27 @@ const allowancePolicyRows = [
   { crewType: 'All crew', entitlement: 'Meal allowance', trigger: 'Breakfast, lunch or dinner by region', rate: 'Regional effective-dated rate', status: 'Active' },
   { crewType: 'Flight crew', entitlement: 'Flight / simulator / instructor', trigger: 'Actual roster activity minutes', rate: 'Effective-dated rate', status: 'Active' }
 ];
+const allowanceTemplateHeaders = ['activityId','date','crewId','flight','sector','dutyType','operatingMinutes','paxingMinutes','diversionMinutes','returnToChockMinutes','fdpExtensionMinutes','productiveHours','layoverMinutes','nightStopRegion','breakfastEligible','lunchEligible','dinnerEligible','simulatorMinutes','instructorMinutes','groundDutyMinutes','remarks'];
+const allowanceTemplateRows = [
+  ['ACT-NEW-001','2026-06-02','CC-519','FY3124','KUL-PEN','FLIGHT','330','0','0','0','0','5.5','135','Malaysia','true','true','false','0','0','0','Cabin layover credit'],
+  ['ACT-NEW-002','2026-06-03','FO-872','FY3021','PEN-JHB','FLIGHT','360','30','0','15','0','6','0','Malaysia','true','false','false','120','60','0','Flight, simulator and instructor activity']
+];
+function parseCsvLine(line) {
+  const values = []; let value = ''; let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    if (character === '"') { if (quoted && line[index + 1] === '"') { value += '"'; index += 1; } else quoted = !quoted; }
+    else if (character === ',' && !quoted) { values.push(value.trim()); value = ''; }
+    else value += character;
+  }
+  values.push(value.trim()); return values;
+}
 function parseAllowanceCsv(text) {
   const [headerLine, ...dataLines] = text.trim().split(/\r?\n/);
   if (!headerLine) return [];
-  const headers = headerLine.split(',').map(item => item.trim());
+  const headers = parseCsvLine(headerLine);
   return dataLines.filter(Boolean).map(line => {
-    const values = line.split(',').map(item => item.trim());
+    const values = parseCsvLine(line);
     return Object.fromEntries(headers.map((header, index) => {
       const value = values[index] ?? '';
       if (['productiveHours','layoverMinutes','operatingMinutes','paxingMinutes','diversionMinutes','returnToChockMinutes','fdpExtensionMinutes','simulatorMinutes','instructorMinutes','groundDutyMinutes'].includes(header)) return [header, Number(value || 0)];
@@ -446,23 +461,27 @@ function parseAllowanceCsv(text) {
     }));
   });
 }
+function downloadAllowanceTemplate() {
+  const csv = [allowanceTemplateHeaders, ...allowanceTemplateRows].map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const link = document.createElement('a'); link.href = url; link.download = 'allowance-roster-template.csv'; link.click(); URL.revokeObjectURL(url);
+}
 function Allowances({ crewDirectory = mockData.crew }) {
-  const [month, setMonth] = useState('2026-06');
   const [run, setRun] = useState(null);
   const [lines, setLines] = useState([]);
   const [adjustments, setAdjustments] = useState([]);
   const [busy, setBusy] = useState(false);
-  const [actor, setActor] = useState('ops.preparer@acms.demo');
-  const [message, setMessage] = useState('Import a validated actual-roster CSV or calculate the seeded pilot roster.');
+  const [message, setMessage] = useState('Download the template, complete the activity rows, then upload it for validation.');
   const [importSummary, setImportSummary] = useState(null);
+  const [sourceMonth, setSourceMonth] = useState('2026-06');
   const [adjustment, setAdjustment] = useState({ crewId: crewDirectory[0]?.crewId || '', component: 'MEAL', amount: '', reason: '' });
-  const previewRows = crewDirectory.map((crew, index) => ({ crewId: crew.crewId, name: crew.name, crewType: crew.rank === 'CC' ? 'CABIN' : 'FLIGHT', sourceActivityCount: index % 3 + 1, productiveHours: (5 + index * .5).toFixed(2), layoverCreditHours: crew.rank === 'CC' ? (index % 2 ? 3 : 1) : 0, totalAmount: 'Pending', status: 'PREVIEW' }));
+  const previewRows = crewDirectory.slice(0, 5).map((crew, index) => ({ crewId: crew.crewId, name: crew.name, crewType: crew.rank === 'CC' ? 'CABIN' : 'FLIGHT', sourceActivityCount: index % 3 + 1, productiveHours: (5 + index * .5).toFixed(2), layoverCreditHours: crew.rank === 'CC' ? (index % 2 ? 3 : 1) : 0, totalAmount: 'Ready to calculate', status: 'PREVIEW' }));
   const displayedLines = lines.length ? lines : previewRows;
   async function calculate() {
-    setBusy(true); setMessage('Requesting a detailed allowance calculation…');
-    const result = await callAcms('allowanceCalculate', { month, actor });
-    if (result?.ok) { setRun(result.run); setLines(result.lines || []); setAdjustments(result.adjustments || []); setMessage(`Draft ${result.run.runId} contains ${result.run.crewCount} crew records. Review the daily-source totals before checking.`); }
-    else setMessage(`Calculation was not confirmed: ${result?.message || 'check the allowance backend and retry.'}`);
+    setBusy(true); setMessage('Calculating the latest validated roster with active effective-dated rates…');
+    const result = await callAcms('allowanceCalculate', { month: sourceMonth, actor: 'ops.preparer@acms.demo' });
+    if (result?.ok && Number(result.run?.totalAmount) > 0 && result.lines?.some(line => Number(line.totalAmount) > 0)) { setRun(result.run); setLines(result.lines); setAdjustments(result.adjustments || []); setMessage(`Draft ${result.run.runId} contains ${result.run.crewCount} payable crew records from ${result.run.importBatchId || 'the seeded roster'}.`); }
+    else setMessage(`Calculation needs payable source activity: ${result?.message || 'the backend returned no non-zero allowance lines.'}`);
     setBusy(false);
   }
   async function importRoster(event) {
@@ -470,22 +489,23 @@ function Allowances({ crewDirectory = mockData.crew }) {
     setBusy(true); setMessage(`Validating ${file.name}…`);
     try {
       const rows = parseAllowanceCsv(await file.text());
-      const result = await callAcms('allowanceImport', { month, rows, actor });
-      if (result?.ok) { setImportSummary(result.batch); setMessage(`Import ${result.batch.importBatchId} validated ${result.batch.validRowCount} row(s). Calculate the draft run next.`); }
-      else setMessage(`Import was rejected: ${result?.batch?.validationSummary || result?.message || 'check the CSV columns and crew IDs.'}`);
+      const importedMonth = rows[0]?.date?.slice(0, 7);
+      const result = await callAcms('allowanceImport', { month: importedMonth, rows, actor: 'ops.preparer@acms.demo' });
+      if (result?.ok) { setImportSummary(result.batch); setSourceMonth(result.batch.month); setMessage(`Import ${result.batch.importBatchId} validated ${result.batch.validRowCount} activity row(s). Calculate the payable draft when ready.`); }
+      else setMessage(`Import was rejected: ${result?.batch?.validationSummary || result?.message || 'check the template columns, crew IDs and a single activity month.'}`);
     } catch (error) { setMessage(`Unable to read CSV: ${error.message}`); }
     setBusy(false); event.target.value = '';
   }
   async function advance(status) {
     if (!run?.runId) return; setBusy(true); setMessage(`Moving ${run.runId} to ${status}…`);
-    const result = await callAcms('allowanceAdvanceStatus', { runId: run.runId, status, actor, comment: `MVP ${status.toLowerCase()} action` });
+    const result = await callAcms('allowanceAdvanceStatus', { runId: run.runId, status, actor: status === 'CHECKED' ? 'payroll.checker@acms.demo' : 'payroll.approver@acms.demo', comment: `MVP ${status.toLowerCase()} action` });
     if (result?.ok) { setRun(result.run); setLines(result.lines || lines); setAdjustments(result.adjustments || adjustments); setMessage(`${result.run.runId} is now ${result.run.status}.`); }
-    else setMessage(`Workflow update was not confirmed: ${result?.message || 'select an actor who is allowed to complete this step.'}`);
+    else setMessage(`Workflow update was not confirmed: ${result?.message || 'the selected workflow step needs a different authorized user.'}`);
     setBusy(false);
   }
   async function addAdjustment(event) {
     event.preventDefault(); if (!run?.runId) return;
-    setBusy(true); const result = await callAcms('allowanceCreateAdjustment', { actor, adjustment: { ...adjustment, runId: run.runId } });
+    setBusy(true); const result = await callAcms('allowanceCreateAdjustment', { actor: 'ops.preparer@acms.demo', adjustment: { ...adjustment, runId: run.runId } });
     if (result?.ok) { setAdjustments(current => [result.adjustment, ...current]); setRun(current => result.run || current); setLines(current => current.map(line => line.crewId === result.adjustment.crewId ? { ...line, adjustmentAmount: (Number(line.adjustmentAmount || 0) + Number(result.adjustment.amount)).toFixed(2), totalAmount: (Number(line.totalAmount || 0) + Number(result.adjustment.amount)).toFixed(2) } : line)); setAdjustment(current => ({ ...current, amount: '', reason: '' })); setMessage(`Adjustment ${result.adjustment.adjustmentId} was recorded for audit and review.`); }
     else setMessage(`Adjustment was not confirmed: ${result?.message || 'check the selected run and fields.'}`);
     setBusy(false);
@@ -493,9 +513,9 @@ function Allowances({ crewDirectory = mockData.crew }) {
   const status = run?.status || 'DRAFT';
   const nextStatus = status === 'DRAFT' ? 'CHECKED' : status === 'CHECKED' ? 'APPROVED' : status === 'APPROVED' ? 'FINALIZED' : '';
   return <>
-    <div className="card allowanceControl"><div><div className="cardTitle">Monthly allowance control run</div><p>Import the actual roster, calculate an explainable draft, then move it through checker and payroll approval controls.</p></div><label>Period<input type="month" value={month} onChange={e=>setMonth(e.target.value)} disabled={busy}/></label><label>Acting user<select value={actor} onChange={e=>setActor(e.target.value)} disabled={busy}><option>ops.preparer@acms.demo</option><option>payroll.checker@acms.demo</option><option>payroll.approver@acms.demo</option></select></label><label className="csvUpload">Import roster CSV<input type="file" accept=".csv,text/csv" onChange={importRoster} disabled={busy}/></label><button className="downloadBtn" onClick={calculate} disabled={busy}>{busy ? 'Working…' : 'Calculate draft'}</button>{run && nextStatus && <button className="ghost" onClick={()=>advance(nextStatus)} disabled={busy}>Mark {nextStatus.toLowerCase()}</button>}<span className="submissionMessage">{message}</span></div>
-    <Kpis items={[{label:'Import batch',value:importSummary?.status || run?.importBatchId || 'Seeded',note:importSummary ? `${importSummary.validRowCount}/${importSummary.rowCount} rows valid` : 'actual roster source',tone:importSummary?.status === 'VALIDATED' ? 'ok' : 'info'},{label:'Run status',value:status,note:run?.runId || 'not calculated',tone:status === 'FINALIZED' ? 'ok' : status === 'DRAFT' ? 'warn' : 'info'},{label:'Layover rule',value:'1h / 3h',note:'cabin crew band',tone:'info'},{label:'Run total',value:run ? `MYR ${Number(run.totalAmount).toFixed(2)}` : 'Pending',note:'detailed components',tone:run ? 'ok' : 'info'}]}/>
-    <div className="grid two"><Table title="Allowance rules in MVP scope" columns={['crewType','entitlement','trigger','rate','status']} rows={allowancePolicyRows}/><Table title={lines.length ? `Calculated allowance lines · ${run?.runId}` : 'Crew calculation preview'} columns={['crewId','name','crewType','sourceActivityCount','productiveHours','layoverCreditHours','breakfastAmount','lunchAmount','dinnerAmount','totalAmount','status']} rows={displayedLines}/></div>
+    <div className="card allowanceImportPanel"><div className="allowanceImportCopy"><span>ALLOWANCE ROSTER</span><h2>Upload activity, not paperwork.</h2><p>Use the guided CSV template to bring actual duty activity into the calculation. The date in the file selects the run period automatically.</p></div><div className="allowanceImportActions"><button className="viewAllBtn" type="button" onClick={downloadAllowanceTemplate}>Download template</button><label className="uploadTrigger">Upload completed CSV<input type="file" accept=".csv,text/csv" onChange={importRoster} disabled={busy}/></label><button className="downloadBtn" onClick={calculate} disabled={busy}>{busy ? 'Working…' : 'Calculate allowances'}</button></div><div className="submissionMessage" role="status">{message}</div></div>
+    <Kpis items={[{label:'Import batch',value:importSummary?.status || run?.importBatchId || 'Seeded',note:importSummary ? `${importSummary.validRowCount}/${importSummary.rowCount} rows valid` : 'payable activity available',tone:importSummary?.status === 'VALIDATED' ? 'ok' : 'info'},{label:'Run status',value:status,note:run?.runId || 'ready to calculate',tone:status === 'FINALIZED' ? 'ok' : status === 'DRAFT' ? 'warn' : 'info'},{label:'Layover rule',value:'1h / 3h',note:'cabin crew band',tone:'info'},{label:'Run total',value:run ? `MYR ${Number(run.totalAmount).toFixed(2)}` : 'Ready',note:'traceable source components',tone:run ? 'ok' : 'info'}]}/>
+    <div className="grid two"><Table title="Allowance rules in MVP scope" columns={['crewType','entitlement','trigger','rate','status']} rows={allowancePolicyRows}/><Table title={lines.length ? `Calculated allowance lines · ${run?.runId}` : 'Payable activity preview'} columns={['crewId','name','crewType','sourceActivityCount','productiveHours','layoverCreditHours','breakfastAmount','lunchAmount','dinnerAmount','totalAmount','status']} rows={displayedLines}/></div>
     {run && <div className="grid two allowanceWorkflow"><form className="card dataForm" onSubmit={addAdjustment}><div className="cardTitle">Discrepancy adjustment</div><p className="formHelp">Record the requested component, amount and reason against the active run. Finalized runs remain immutable.</p><label>Crew member<select value={adjustment.crewId} onChange={e=>setAdjustment(current=>({...current,crewId:e.target.value}))}>{crewDirectory.map(crew=><option key={crew.crewId} value={crew.crewId}>{crew.crewId} · {crew.name}</option>)}</select></label><div className="formRow"><label>Component<select value={adjustment.component} onChange={e=>setAdjustment(current=>({...current,component:e.target.value}))}>{['MEAL','PRODUCTIVITY','FLIGHT','SIMULATOR','INSTRUCTOR','GROUND_DUTY','OTHER'].map(item=><option key={item}>{item}</option>)}</select></label><label>Amount (MYR)<input type="number" step="0.01" value={adjustment.amount} onChange={e=>setAdjustment(current=>({...current,amount:e.target.value}))} required/></label></div><label>Reason<textarea value={adjustment.reason} onChange={e=>setAdjustment(current=>({...current,reason:e.target.value}))} required placeholder="Explain the prior-period or current-month discrepancy"/></label><button className="downloadBtn" type="submit" disabled={busy || status === 'FINALIZED'}>{status === 'FINALIZED' ? 'Run finalized' : 'Record adjustment'}</button></form><Table title="Adjustment register" columns={['adjustmentId','crewId','component','amount','reason','status','requestedBy']} rows={adjustments}/></div>}
   </>;
 }
