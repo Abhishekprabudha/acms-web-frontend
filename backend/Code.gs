@@ -69,6 +69,7 @@ function db_() {
 function ensureSheet_(name, headers) {
   var sheet = db_().getSheetByName(name) || db_().insertSheet(name);
   if (sheet.getLastRow() === 0) sheet.appendRow(headers);
+  else { var existing=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0]; headers.filter(function(header){return existing.indexOf(header)<0;}).forEach(function(header){sheet.getRange(1,sheet.getLastColumn()+1).setValue(header);}); }
   return sheet;
 }
 function readObjects_(name) {
@@ -93,7 +94,7 @@ var CORE_SHEET_HEADERS = {
   Allowance_Adjustments: ['adjustmentId','runId','crewId','activityId','component','amount','reason','status','requestedBy','approvedBy','createdAt','approvedAt'],
   Allowance_Reports: ['reportId','runId','crewId','template','version','status','fileUrl','generatedAt','generatedBy'],
   Allowance_Distribution: ['distributionId','runId','crewId','recipientEmail','reportId','status','attemptCount','sentAt','errorMessage','createdAt'],
-  Attendance: ['id','crewId','date','flight','reportTime','status','evidence','notes','submittedAt'],
+  Attendance: ['id','crewId','date','flight','reportTime','status','evidence','notes','submittedAt','designation','payableActivity'],
   Audit_Log: ['timestamp','action','actor','detail']
 };
 function tableHeaders_(name) { return OPERATIONAL_SHEET_HEADERS[name] || CORE_SHEET_HEADERS[name]; }
@@ -280,4 +281,4 @@ function createAllowanceAdjustment_(adjustment,actor) {
 }
 function finalizeRun_(runId,actor) { return advanceAllowanceStatus_(runId,'FINALIZED',actor,'Finalized for payroll'); }
 
-function createAttendance_(attendance, actor) { ['crewId','date','flight','reportTime','status'].forEach(function(k){if(!attendance[k])throw new Error('attendance.'+k+' is required');}); var record={id:'ATT-'+new Date().getTime(),crewId:attendance.crewId,date:attendance.date,flight:attendance.flight,reportTime:attendance.reportTime,status:attendance.status,evidence:attendance.evidence||'',notes:attendance.notes||'',submittedAt:attendance.submittedAt||new Date().toISOString()}; appendObject_(SHEETS.ATTENDANCE,Object.keys(record),record); audit_('attendanceCreate',actor,record); return {ok:true,id:record.id,attendance:record}; }
+function createAttendance_(attendance, actor) { ['crewId','designation','date','flight','reportTime','status','payableActivity'].forEach(function(k){if(!attendance[k])throw new Error('attendance.'+k+' is required');}); var record={id:'ATT-'+new Date().getTime(),crewId:attendance.crewId,designation:attendance.designation,date:attendance.date,flight:attendance.flight,reportTime:attendance.reportTime,status:attendance.status,payableActivity:attendance.payableActivity,evidence:attendance.evidence||'',notes:attendance.notes||'',submittedAt:attendance.submittedAt||new Date().toISOString()}; appendObject_(SHEETS.ATTENDANCE,CORE_SHEET_HEADERS[SHEETS.ATTENDANCE],record); audit_('attendanceCreate',actor,record); return {ok:true,id:record.id,attendance:record}; }
