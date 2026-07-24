@@ -176,7 +176,7 @@ function Shell() {
   return <div className="app">
     <aside className={sidebarOpen ? 'sidebar' : 'sidebar collapsed'}>
       <div className="brand"><div className="brandMark">A</div><div><b>ACMS</b><span>Crew Ops OS</span></div></div>
-      <nav>{nav.map(item => { const NIcon = item.icon; return <button key={item.key} className={active === item.key ? 'nav active' : 'nav'} onClick={() => setActive(item.key)}><NIcon size={18}/><span>{item.label}</span></button>})}</nav>
+      <nav className="sidebarNav" aria-label="Primary navigation">{nav.map(item => { const NIcon = item.icon; return <button key={item.key} className={active === item.key ? 'nav active' : 'nav'} onClick={() => setActive(item.key)}><NIcon size={18}/><span>{item.label}</span></button>})}</nav>
       <div className="backendPill"><span>Live Sheets Backend</span><b>{sync}</b></div>
     </aside>
     <main>
