@@ -22,7 +22,7 @@ The Apps Script backend treats Google Sheets tabs as its operational tables. `se
 | Demand & Schedule Import | `Flight_Operations` | `Operational_Exceptions` | Flight status and aircraft-swap exceptions drive demand gaps. |
 | Crew 360 | `Crew_Master` | `Crew_Qualifications`, `Crew_Medical`, `Crew_Availability` | Crew list is loaded by the shell after a healthy backend ping. |
 | Ops Control / Check-in | `CheckIns` | `Attendance`, `Operational_Exceptions`, `Notifications` | The attendance form writes `Attendance` through `attendanceCreate`; check-ins remain their operational source. |
-| Allowances | `Roster_Actual`, `Crew_Master`, `Allowance_Rates` | `Allowance_Runs`, `Allowance_Lines`, `Audit_Log` | Existing calculate/finalize actions remain the monetary source of truth. |
+| Allowances | `Roster_Actual`, `Crew_Master`, `Allowance_Rates`, `Meal_Rates` | `Roster_Import_Batches`, `Allowance_Rules`, `Allowance_Runs`, `Allowance_Lines`, `Allowance_Approvals`, `Allowance_Adjustments`, `Allowance_Reports`, `Allowance_Distribution`, `Audit_Log` | MVP calculation uses validated import batches, effective-dated rates, approval transitions and immutable adjustment records. |
 | HR Policies | `HR_Policies` | `Audit_Log` | Controlled policy records and approval dates. |
 | Recovery | `Recovery_Cases` | `Operational_Exceptions`, `Roster_Published`, `Crew_Availability`, `Notifications` | One recovery case references the triggering exception. |
 | Optimizer | `Optimizer_Scenarios` | `Roster_Published`, `Rules_Config`, `Rule_Evaluations` | Scenarios store outcome metrics; rules retain constraint evidence. |
@@ -37,3 +37,20 @@ The Apps Script backend treats Google Sheets tabs as its operational tables. `se
 * `setupSeedData` **replaces** the seeded tables with the complete demo data pack and logs the setup event.
 * `setupOperationalSheets` is additive only: it creates missing table tabs and does not replace existing rows.
 * Call `schemaList` after deployment to consume canonical column names rather than duplicating headers in a client.
+
+
+## Allowance MVP table expansion
+
+The Allowance MVP expands the minimum Sheets schema required by the requirements deck. Deploy the updated Apps Script and call `setupSeedData` only in a non-production workbook to create and populate the new tabs. For an existing operational workbook, create the listed tabs from `schemaList`, migrate roster records into the expanded `Roster_Actual` schema, and do not reset historical data.
+
+| Table | Required purpose |
+| --- | --- |
+| `Roster_Import_Batches` | Immutable record of roster file validation and the batch used for a calculation run. |
+| `Allowance_Rules` | Approved, effective-dated calculation rule catalogue. |
+| `Meal_Rates` | Region and meal-specific rate/time-window records. |
+| `Allowance_Approvals` | Draft/check/approve/finalize transition evidence. |
+| `Allowance_Adjustments` | Discrepancy and approved correction records. |
+| `Allowance_Reports` | Per-crew PDF report version and storage reference. |
+| `Allowance_Distribution` | Individual report-send and retry history. |
+
+`Crew_Master`, `Roster_Actual`, `Allowance_Rates`, `Allowance_Runs`, and `Allowance_Lines` also have expanded canonical headers. Existing production data must be migrated to these headers before enabling the detailed allowance calculation actions.

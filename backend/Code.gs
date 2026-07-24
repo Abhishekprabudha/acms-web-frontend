@@ -1,11 +1,10 @@
 /** ACMS Sheets backend. Set script property ACMS_SPREADSHEET_ID before deployment. */
 var SHEETS = {
   CREW: 'Crew_Master', ROSTER: 'Roster_Actual', RATES: 'Allowance_Rates',
-  RUNS: 'Allowance_Runs', LINES: 'Allowance_Lines', ATTENDANCE: 'Attendance', AUDIT: 'Audit_Log',
+  RUNS: 'Allowance_Runs', LINES: 'Allowance_Lines', IMPORTS: 'Roster_Import_Batches', ALLOWANCE_RULES: 'Allowance_Rules', MEAL_RATES: 'Meal_Rates', APPROVALS: 'Allowance_Approvals', ADJUSTMENTS: 'Allowance_Adjustments', REPORTS: 'Allowance_Reports', DISTRIBUTION: 'Allowance_Distribution', ATTENDANCE: 'Attendance', AUDIT: 'Audit_Log',
   ROSTER_PUBLISHED: 'Roster_Published', FLIGHT_OPERATIONS: 'Flight_Operations', CHECKINS: 'CheckIns',
   EXCEPTIONS: 'Operational_Exceptions', RECOVERY: 'Recovery_Cases', QUALIFICATIONS: 'Crew_Qualifications',
-  MEDICAL: 'Crew_Medical', AVAILABILITY: 'Crew_Availability', RULES: 'Rules_Config',
-  RULE_EVALUATIONS: 'Rule_Evaluations', POLICIES: 'HR_Policies', USERS: 'User_RBAC',
+  MEDICAL: 'Crew_Medical', AVAILABILITY: 'Crew_Availability', RULES: 'Rules_Config', RULE_EVALUATIONS: 'Rule_Evaluations', POLICIES: 'HR_Policies', USERS: 'User_RBAC',
   ROSTER_CHANGES: 'Roster_Changes', OPTIMIZER: 'Optimizer_Scenarios', NOTIFICATIONS: 'Notifications'
 };
 
@@ -40,7 +39,7 @@ function doPost(e) {
   }
 }
 function json_(payload) { return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON); }
-function supportedActions_() { return ['ping','setupSeedData','setupOperationalSheets','schemaList','sheetSummary','operationalList','recordCreate','recordUpdate','crewList','allowanceCalculate','allowanceGetRun','allowanceListRuns','allowanceFinalize','attendanceCreate']; }
+function supportedActions_() { return ['ping','setupSeedData','setupOperationalSheets','schemaList','sheetSummary','operationalList','recordCreate','recordUpdate','crewList','allowanceImport','allowanceCalculate','allowanceGetRun','allowanceListRuns','allowanceAdvanceStatus','allowanceCreateAdjustment','allowanceFinalize','attendanceCreate']; }
 function dispatch_(r) {
   var action = r.action;
   if (action === 'ping') return { ok: true, service: 'ACMS allowance backend', actions: supportedActions_() };
@@ -52,9 +51,12 @@ function dispatch_(r) {
   if (action === 'recordCreate') return createRecord_(r.table, r.record || {}, r.actor || 'web');
   if (action === 'recordUpdate') return updateRecord_(r.table, r.keyField, r.keyValue, r.record || {}, r.actor || 'web');
   if (action === 'crewList') return { ok: true, crew: readObjects_(SHEETS.CREW) };
+  if (action === 'allowanceImport') return importAllowanceRoster_(r.month, r.rows || [], r.actor || 'web');
   if (action === 'allowanceCalculate') return calculateAllowance_(r.month, r.actor || 'web');
   if (action === 'allowanceGetRun') return getRun_(r.runId);
   if (action === 'allowanceListRuns') return { ok: true, runs: readObjects_(SHEETS.RUNS) };
+  if (action === 'allowanceAdvanceStatus') return advanceAllowanceStatus_(r.runId, r.status, r.actor || 'web', r.comment || '');
+  if (action === 'allowanceCreateAdjustment') return createAllowanceAdjustment_(r.adjustment || {}, r.actor || 'web');
   if (action === 'allowanceFinalize') return finalizeRun_(r.runId, r.actor || 'web');
   if (action === 'attendanceCreate') return createAttendance_(r.attendance || {}, r.actor || 'web');
   throw new Error('Unsupported action: ' + action);
@@ -79,11 +81,18 @@ function readObjects_(name) {
 function appendObject_(name, headers, obj) { ensureSheet_(name, headers).appendRow(headers.map(function (h) { return obj[h] === undefined ? '' : obj[h]; })); }
 function audit_(action, actor, detail) { appendObject_(SHEETS.AUDIT, ['timestamp','action','actor','detail'], { timestamp: new Date().toISOString(), action: action, actor: actor, detail: JSON.stringify(detail) }); }
 var CORE_SHEET_HEADERS = {
-  Crew_Master: ['crewId','name','crewType','rank','base','fleet','status','medical','license','training','active'],
-  Roster_Actual: ['date','crewId','dutyType','productiveHours','layoverMinutes','mealEligible'],
-  Allowance_Rates: ['crewType','code','rate','effectiveFrom','active'],
-  Allowance_Runs: ['runId','month','status','createdAt','finalizedAt','totalAmount','crewCount'],
-  Allowance_Lines: ['runId','crewId','name','crewType','productiveHours','layoverMinutes','layoverCreditHours','mealCount','productivityAllowance','productivityIncentive','flightAllowance','mealAllowance','totalAmount','status'],
+  Crew_Master: ['crewId','name','crewType','rank','designation','base','fleet','email','managementPilot','instructor','status','medical','license','training','active'],
+  Roster_Actual: ['activityId','importBatchId','date','crewId','flight','sector','dutyType','operatingMinutes','paxingMinutes','diversionMinutes','returnToChockMinutes','fdpExtensionMinutes','productiveHours','layoverMinutes','nightStopRegion','breakfastEligible','lunchEligible','dinnerEligible','simulatorMinutes','instructorMinutes','groundDutyMinutes','remarks'],
+  Allowance_Rates: ['crewType','code','region','rate','effectiveFrom','effectiveTo','active'],
+  Roster_Import_Batches: ['importBatchId','month','sourceFileName','rowCount','validRowCount','invalidRowCount','status','createdAt','createdBy','validationSummary'],
+  Allowance_Rules: ['ruleId','crewType','code','description','effectiveFrom','effectiveTo','active','approvedBy','approvedAt'],
+  Meal_Rates: ['region','mealType','startLocalTime','endLocalTime','rate','effectiveFrom','effectiveTo','active'],
+  Allowance_Runs: ['runId','month','importBatchId','status','createdAt','createdBy','checkedAt','checkedBy','approvedAt','approvedBy','finalizedAt','finalizedBy','totalAmount','crewCount'],
+  Allowance_Lines: ['runId','crewId','name','crewType','sourceActivityCount','productiveHours','layoverMinutes','layoverCreditHours','breakfastAmount','lunchAmount','dinnerAmount','productivityAllowance','productivityIncentive','flightAllowance','simulatorAllowance','instructorAllowance','groundDutyAllowance','adjustmentAmount','totalAmount','status'],
+  Allowance_Approvals: ['approvalId','runId','fromStatus','toStatus','actor','comment','createdAt'],
+  Allowance_Adjustments: ['adjustmentId','runId','crewId','activityId','component','amount','reason','status','requestedBy','approvedBy','createdAt','approvedAt'],
+  Allowance_Reports: ['reportId','runId','crewId','template','version','status','fileUrl','generatedAt','generatedBy'],
+  Allowance_Distribution: ['distributionId','runId','crewId','recipientEmail','reportId','status','attemptCount','sentAt','errorMessage','createdAt'],
   Attendance: ['id','crewId','date','flight','reportTime','status','evidence','notes','submittedAt'],
   Audit_Log: ['timestamp','action','actor','detail']
 };
@@ -119,7 +128,7 @@ function setupSeedData_() {
   var data = seedData_(), operational = operationalSeedData_();
   Object.keys(operational).forEach(function(name) { data[name] = operational[name]; });
   Object.keys(data).forEach(function (name) {
-    var rows = data[name], headers = Object.keys(rows[0]); var sheet = ensureSheet_(name, headers);
+    var rows = data[name], headers = CORE_SHEET_HEADERS[name] || OPERATIONAL_SHEET_HEADERS[name] || Object.keys(rows[0]); var sheet = ensureSheet_(name, headers);
     sheet.clearContents(); sheet.appendRow(headers);
     if (rows.length) sheet.getRange(2, 1, rows.length, headers.length).setValues(rows.map(function (r) { return headers.map(function (h) { return r[h]; }); }));
     sheet.setFrozenRows(1);
@@ -130,8 +139,8 @@ function setupSeedData_() {
 }
 function seedData_() { return {
   Crew_Master: [
-    {crewId:'CPT-204',name:'A. Rahman',crewType:'FLIGHT',rank:'CPT',base:'KUL',fleet:'ATR',status:'Ready',medical:'Valid',license:'Valid',training:'SEP due 42d',active:true},
-    {crewId:'FO-872',name:'S. Tan',crewType:'FLIGHT',rank:'FO',base:'PEN',fleet:'ATR',status:'Training',medical:'Valid',license:'Valid',training:'Line check',active:true},
+    {crewId:'CPT-204',name:'A. Rahman',crewType:'FLIGHT',rank:'CPT',designation:'Captain',base:'KUL',fleet:'ATR',email:'a.rahman@firefly.demo',managementPilot:false,instructor:false,status:'Ready',medical:'Valid',license:'Valid',training:'SEP due 42d',active:true},
+    {crewId:'FO-872',name:'S. Tan',crewType:'FLIGHT',rank:'FO',designation:'First Officer',base:'PEN',fleet:'ATR',email:'s.tan@firefly.demo',managementPilot:false,instructor:true,status:'Training',medical:'Valid',license:'Valid',training:'Line check',active:true},
     {crewId:'CC-519',name:'N. Lim',crewType:'CABIN',rank:'CC',base:'KUL',fleet:'ATR',status:'Ready',medical:'Valid',license:'N/A',training:'CRM valid',active:true},
     {crewId:'CPT-355',name:'R. Kumar',crewType:'FLIGHT',rank:'CPT',base:'BKI',fleet:'B737',status:'Med expiring',medical:'Expiring',license:'Valid',training:'Valid',active:true},
     {crewId:'FO-111',name:'M. Lee',crewType:'FLIGHT',rank:'FO',base:'KUL',fleet:'ATR',status:'Ready',medical:'Valid',license:'Valid',training:'Valid',active:true},
@@ -142,26 +151,29 @@ function seedData_() { return {
     {crewId:'CC-812',name:'L. Goh',crewType:'CABIN',rank:'CC',base:'BKI',fleet:'B737',status:'Leave',medical:'Valid',license:'N/A',training:'Valid',active:true}
   ],
   Roster_Actual: [
-    {date:'2026-06-02',crewId:'CPT-204',dutyType:'FLIGHT',productiveHours:6.5,layoverMinutes:0,mealEligible:true},
-    {date:'2026-06-04',crewId:'CPT-204',dutyType:'FLIGHT',productiveHours:7,layoverMinutes:0,mealEligible:true},
-    {date:'2026-06-03',crewId:'FO-872',dutyType:'FLIGHT',productiveHours:6,layoverMinutes:0,mealEligible:true},
-    {date:'2026-06-05',crewId:'FO-872',dutyType:'FLIGHT',productiveHours:7.5,layoverMinutes:0,mealEligible:true},
-    {date:'2026-06-02',crewId:'CC-519',dutyType:'FLIGHT',productiveHours:5.5,layoverMinutes:135,mealEligible:true},
-    {date:'2026-06-06',crewId:'CC-519',dutyType:'FLIGHT',productiveHours:6,layoverMinutes:240,mealEligible:true},
-    {date:'2026-06-04',crewId:'CPT-355',dutyType:'FLIGHT',productiveHours:8,layoverMinutes:0,mealEligible:true},
-    {date:'2026-06-08',crewId:'FO-111',dutyType:'FLIGHT',productiveHours:6.5,layoverMinutes:0,mealEligible:true},
-    {date:'2026-06-03',crewId:'CC-644',dutyType:'FLIGHT',productiveHours:5,layoverMinutes:150,mealEligible:true},
-    {date:'2026-06-07',crewId:'CC-644',dutyType:'FLIGHT',productiveHours:6,layoverMinutes:180,mealEligible:true},
-    {date:'2026-06-09',crewId:'CC-390',dutyType:'FLIGHT',productiveHours:5.5,layoverMinutes:90,mealEligible:true}
+    {activityId:'ACT-001',importBatchId:'IMP-2026-06-SEED',date:'2026-06-02',crewId:'CC-519',flight:'FY3124',sector:'KUL-PEN',dutyType:'FLIGHT',operatingMinutes:330,paxingMinutes:0,diversionMinutes:0,returnToChockMinutes:0,fdpExtensionMinutes:0,productiveHours:5.5,layoverMinutes:135,nightStopRegion:'Malaysia',breakfastEligible:true,lunchEligible:true,dinnerEligible:false,simulatorMinutes:0,instructorMinutes:0,groundDutyMinutes:0,remarks:'Cabin layover credit'},
+    {activityId:'ACT-002',importBatchId:'IMP-2026-06-SEED',date:'2026-06-06',crewId:'CC-519',flight:'FY3196',sector:'PEN-KUL',dutyType:'FLIGHT',operatingMinutes:360,paxingMinutes:0,diversionMinutes:0,returnToChockMinutes:0,fdpExtensionMinutes:0,productiveHours:6,layoverMinutes:240,nightStopRegion:'Malaysia',breakfastEligible:false,lunchEligible:false,dinnerEligible:true,simulatorMinutes:0,instructorMinutes:0,groundDutyMinutes:0,remarks:'Cabin layover credit'},
+    {activityId:'ACT-003',importBatchId:'IMP-2026-06-SEED',date:'2026-06-03',crewId:'FO-872',flight:'FY3021',sector:'PEN-JHB',dutyType:'FLIGHT',operatingMinutes:360,paxingMinutes:30,diversionMinutes:0,returnToChockMinutes:15,fdpExtensionMinutes:0,productiveHours:6,layoverMinutes:0,nightStopRegion:'Malaysia',breakfastEligible:true,lunchEligible:false,dinnerEligible:false,simulatorMinutes:120,instructorMinutes:60,groundDutyMinutes:0,remarks:'Simulator and instructor activity'},
+    {activityId:'ACT-004',importBatchId:'IMP-2026-06-SEED',date:'2026-06-04',crewId:'CPT-204',flight:'FY3066',sector:'KUL-LGK',dutyType:'FLIGHT',operatingMinutes:390,paxingMinutes:0,diversionMinutes:0,returnToChockMinutes:0,fdpExtensionMinutes:30,productiveHours:6.5,layoverMinutes:0,nightStopRegion:'Malaysia',breakfastEligible:false,lunchEligible:true,dinnerEligible:false,simulatorMinutes:0,instructorMinutes:0,groundDutyMinutes:120,remarks:'FDP extension and ground duty'},
+    {activityId:'ACT-005',importBatchId:'IMP-2026-06-SEED',date:'2026-06-07',crewId:'CC-644',flight:'FY3288',sector:'PEN-SZB',dutyType:'FLIGHT',operatingMinutes:300,paxingMinutes:0,diversionMinutes:0,returnToChockMinutes:0,fdpExtensionMinutes:0,productiveHours:5,layoverMinutes:180,nightStopRegion:'Malaysia',breakfastEligible:false,lunchEligible:true,dinnerEligible:false,simulatorMinutes:0,instructorMinutes:0,groundDutyMinutes:0,remarks:'Three-hour cabin layover credit'}
   ],
   Allowance_Rates: [
-    {crewType:'CABIN',code:'PRODUCTIVITY_ALLOWANCE',rate:12,effectiveFrom:'2026-01-01',active:true},
-    {crewType:'CABIN',code:'PRODUCTIVITY_INCENTIVE',rate:8,effectiveFrom:'2026-01-01',active:true},
-    {crewType:'FLIGHT',code:'FLIGHT_HOUR_ALLOWANCE',rate:25,effectiveFrom:'2026-01-01',active:true},
-    {crewType:'ALL',code:'MEAL_ALLOWANCE',rate:18,effectiveFrom:'2026-01-01',active:true}
+    {crewType:'CABIN',code:'PRODUCTIVITY_ALLOWANCE',region:'ALL',rate:12,effectiveFrom:'2026-01-01',effectiveTo:'',active:true},
+    {crewType:'CABIN',code:'PRODUCTIVITY_INCENTIVE',region:'ALL',rate:8,effectiveFrom:'2026-01-01',effectiveTo:'',active:true},
+    {crewType:'FLIGHT',code:'FLIGHT_HOUR_ALLOWANCE',region:'ALL',rate:25,effectiveFrom:'2026-01-01',effectiveTo:'',active:true},
+    {crewType:'FLIGHT',code:'SIMULATOR_ALLOWANCE',region:'ALL',rate:15,effectiveFrom:'2026-01-01',effectiveTo:'',active:true},
+    {crewType:'FLIGHT',code:'INSTRUCTOR_ALLOWANCE',region:'ALL',rate:20,effectiveFrom:'2026-01-01',effectiveTo:'',active:true},
+    {crewType:'ALL',code:'GROUND_DUTY_ALLOWANCE',region:'ALL',rate:10,effectiveFrom:'2026-01-01',effectiveTo:'',active:true}
   ],
-  Allowance_Runs: [{runId:'RUN-2026-05-001',month:'2026-05',status:'FINALIZED',createdAt:'2026-06-01T00:00:00.000Z',finalizedAt:'2026-06-05T00:00:00.000Z',totalAmount:0,crewCount:0}],
-  Allowance_Lines: [{runId:'RUN-2026-05-001',crewId:'CC-519',name:'N. Lim',crewType:'CABIN',productiveHours:0,layoverMinutes:0,layoverCreditHours:0,mealCount:0,productivityAllowance:0,productivityIncentive:0,flightAllowance:0,mealAllowance:0,totalAmount:0,status:'FINALIZED'}]
+  Roster_Import_Batches: [{importBatchId:'IMP-2026-06-SEED',month:'2026-06',sourceFileName:'june-actual-roster.csv',rowCount:5,validRowCount:5,invalidRowCount:0,status:'VALIDATED',createdAt:'2026-06-01T00:00:00.000Z',createdBy:'system',validationSummary:'Seeded allowance roster'}],
+  Allowance_Rules: [{ruleId:'CABIN-LAYOVER-001',crewType:'CABIN',code:'LAYOVER_CREDIT',description:'2:00–2:59 = 1 hour; 3:00–11:00 = 3 hours',effectiveFrom:'2026-01-01',effectiveTo:'',active:true,approvedBy:'payroll@acms.demo',approvedAt:'2026-01-01T00:00:00.000Z'}],
+  Meal_Rates: [{region:'Malaysia',mealType:'BREAKFAST',startLocalTime:'07:01',endLocalTime:'09:00',rate:26,effectiveFrom:'2026-01-01',effectiveTo:'',active:true},{region:'Malaysia',mealType:'LUNCH',startLocalTime:'12:01',endLocalTime:'14:00',rate:39,effectiveFrom:'2026-01-01',effectiveTo:'',active:true},{region:'Malaysia',mealType:'DINNER',startLocalTime:'19:01',endLocalTime:'21:00',rate:65,effectiveFrom:'2026-01-01',effectiveTo:'',active:true}],
+  Allowance_Runs: [{runId:'RUN-2026-05-001',month:'2026-05',importBatchId:'',status:'FINALIZED',createdAt:'2026-06-01T00:00:00.000Z',createdBy:'payroll@acms.demo',checkedAt:'2026-06-03T00:00:00.000Z',checkedBy:'checker@acms.demo',approvedAt:'2026-06-04T00:00:00.000Z',approvedBy:'approver@acms.demo',finalizedAt:'2026-06-05T00:00:00.000Z',finalizedBy:'approver@acms.demo',totalAmount:0,crewCount:0}],
+  Allowance_Lines: [{runId:'RUN-2026-05-001',crewId:'CC-519',name:'N. Lim',crewType:'CABIN',sourceActivityCount:0,productiveHours:0,layoverMinutes:0,layoverCreditHours:0,breakfastAmount:0,lunchAmount:0,dinnerAmount:0,productivityAllowance:0,productivityIncentive:0,flightAllowance:0,simulatorAllowance:0,instructorAllowance:0,groundDutyAllowance:0,adjustmentAmount:0,totalAmount:0,status:'FINALIZED'}],
+  Allowance_Approvals: [{approvalId:'APR-202605',runId:'RUN-2026-05-001',fromStatus:'APPROVED',toStatus:'FINALIZED',actor:'approver@acms.demo',comment:'Seeded finalized run',createdAt:'2026-06-05T00:00:00.000Z'}],
+  Allowance_Adjustments: [{adjustmentId:'ADJ-202605',runId:'RUN-2026-05-001',crewId:'CC-519',activityId:'',component:'OTHER',amount:0,reason:'Seed record',status:'APPROVED',requestedBy:'payroll@acms.demo',approvedBy:'approver@acms.demo',createdAt:'2026-06-05T00:00:00.000Z',approvedAt:'2026-06-05T00:00:00.000Z'}],
+  Allowance_Reports: [{reportId:'RPT-202605-CC519',runId:'RUN-2026-05-001',crewId:'CC-519',template:'Cabin',version:1,status:'ARCHIVED',fileUrl:'',generatedAt:'2026-06-05T00:00:00.000Z',generatedBy:'system'}],
+  Allowance_Distribution: [{distributionId:'DST-202605-CC519',runId:'RUN-2026-05-001',crewId:'CC-519',recipientEmail:'',reportId:'RPT-202605-CC519',status:'SENT',attemptCount:1,sentAt:'2026-06-05T00:00:00.000Z',errorMessage:'',createdAt:'2026-06-05T00:00:00.000Z'}]
 }; }
 // Read-only operational access for frontend modules. Sheet names are allow-listed to prevent arbitrary workbook access.
 function operationalList_(sheet, startDate, endDate) {
@@ -207,29 +219,58 @@ function operationalSeedData_() {
   return out;
 }
 
-function rate_(rates, crewType, code) { var row = rates.filter(function(r) { return r.code === code && (r.crewType === crewType || r.crewType === 'ALL') && String(r.active) === 'true'; })[0]; if (!row) throw new Error('Missing active rate for ' + crewType + '/' + code); return Number(row.rate); }
+function rate_(rates, crewType, code, date) {
+  var eligible=rates.filter(function(r) { return r.code === code && (r.crewType === crewType || r.crewType === 'ALL') && String(r.active) === 'true' && (!r.effectiveFrom || r.effectiveFrom <= date) && (!r.effectiveTo || r.effectiveTo >= date); });
+  var row=eligible.sort(function(a,b){ return String(b.effectiveFrom).localeCompare(String(a.effectiveFrom)); })[0];
+  if (!row) throw new Error('Missing active rate for ' + crewType + '/' + code + ' on ' + date); return Number(row.rate);
+}
+function mealRate_(rates, region, mealType, date) {
+  var row=rates.filter(function(r){ return r.region === region && r.mealType === mealType && String(r.active) === 'true' && (!r.effectiveFrom || r.effectiveFrom <= date) && (!r.effectiveTo || r.effectiveTo >= date); })[0];
+  return row ? Number(row.rate) : 0;
+}
 function layoverCredit_(minutes) { return minutes >= 180 && minutes <= 660 ? 3 : minutes >= 120 && minutes < 180 ? 1 : 0; }
+function importAllowanceRoster_(month, rows, actor) {
+  if (!/^\d{4}-\d{2}$/.test(month || '')) throw new Error('month must use YYYY-MM.');
+  if (!rows.length) throw new Error('At least one roster row is required.');
+  var crewIds=readObjects_(SHEETS.CREW).map(function(c){return c.crewId;}), invalid=[];
+  rows.forEach(function(row, index){ if (!row.crewId || crewIds.indexOf(row.crewId) < 0 || !row.date || String(row.date).slice(0,7) !== month || !row.dutyType) invalid.push(index+1); });
+  var batchId='IMP-'+month+'-'+Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'HHmmss');
+  var status=invalid.length ? 'REJECTED' : 'VALIDATED';
+  var batch={importBatchId:batchId,month:month,sourceFileName:'allowance-roster.csv',rowCount:rows.length,validRowCount:rows.length-invalid.length,invalidRowCount:invalid.length,status:status,createdAt:new Date().toISOString(),createdBy:actor,validationSummary:invalid.length ? 'Invalid rows: '+invalid.join(', ') : 'All rows validated'};
+  appendObject_(SHEETS.IMPORTS, CORE_SHEET_HEADERS[SHEETS.IMPORTS], batch);
+  if (!invalid.length) rows.forEach(function(row,index){ var record={activityId:row.activityId || batchId+'-'+(index+1),importBatchId:batchId,date:row.date,crewId:row.crewId,flight:row.flight||'',sector:row.sector||'',dutyType:row.dutyType,operatingMinutes:row.operatingMinutes||0,paxingMinutes:row.paxingMinutes||0,diversionMinutes:row.diversionMinutes||0,returnToChockMinutes:row.returnToChockMinutes||0,fdpExtensionMinutes:row.fdpExtensionMinutes||0,productiveHours:row.productiveHours||0,layoverMinutes:row.layoverMinutes||0,nightStopRegion:row.nightStopRegion||'Malaysia',breakfastEligible:!!row.breakfastEligible,lunchEligible:!!row.lunchEligible,dinnerEligible:!!row.dinnerEligible,simulatorMinutes:row.simulatorMinutes||0,instructorMinutes:row.instructorMinutes||0,groundDutyMinutes:row.groundDutyMinutes||0,remarks:row.remarks||''}; appendObject_(SHEETS.ROSTER, CORE_SHEET_HEADERS[SHEETS.ROSTER], record); });
+  audit_('allowanceImport', actor, batch); return {ok:!invalid.length,batch:batch,invalidRows:invalid};
+}
 function calculateAllowance_(month, actor) {
   if (!/^\d{4}-\d{2}$/.test(month || '')) throw new Error('month must use YYYY-MM.');
-  var existing = readObjects_(SHEETS.RUNS).filter(function(r) { return r.month === month && r.status === 'DRAFT'; })[0];
-  if (existing) return getRun_(existing.runId);
-  var crew = readObjects_(SHEETS.CREW).filter(function(r) { return String(r.active) === 'true'; });
-  var roster = readObjects_(SHEETS.ROSTER).filter(function(r) { return String(r.date).slice(0, 7) === month; }); var rates = readObjects_(SHEETS.RATES);
-  var runId = 'RUN-' + month + '-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'HHmmss');
-  var lines = crew.map(function(c) {
-    var duties = roster.filter(function(r) { return r.crewId === c.crewId; });
-    var hours = duties.reduce(function(s,r) { return s + Number(r.productiveHours || 0); },0), layover = duties.reduce(function(s,r) { return s + Number(r.layoverMinutes || 0); },0);
-    var credit = c.crewType === 'CABIN' ? duties.reduce(function(s,r) { return s + layoverCredit_(Number(r.layoverMinutes || 0)); },0) : 0;
-    var meals = duties.filter(function(r) { return String(r.mealEligible) === 'true'; }).length;
-    var pa = c.crewType === 'CABIN' ? (hours + credit) * rate_(rates,'CABIN','PRODUCTIVITY_ALLOWANCE') : 0;
-    var pi = c.crewType === 'CABIN' ? (hours + credit) * rate_(rates,'CABIN','PRODUCTIVITY_INCENTIVE') : 0;
-    var fa = c.crewType === 'FLIGHT' ? hours * rate_(rates,'FLIGHT','FLIGHT_HOUR_ALLOWANCE') : 0;
-    var ma = meals * rate_(rates,'ALL','MEAL_ALLOWANCE'), total = pa + pi + fa + ma;
-    return {runId:runId,crewId:c.crewId,name:c.name,crewType:c.crewType,productiveHours:hours.toFixed(2),layoverMinutes:layover,layoverCreditHours:credit,mealCount:meals,productivityAllowance:pa.toFixed(2),productivityIncentive:pi.toFixed(2),flightAllowance:fa.toFixed(2),mealAllowance:ma.toFixed(2),totalAmount:total.toFixed(2),status:'DRAFT'};
+  var existing=readObjects_(SHEETS.RUNS).filter(function(r){return r.month===month && ['DRAFT','CHECKED','APPROVED'].indexOf(r.status)>=0;})[0]; if(existing) return getRun_(existing.runId);
+  var crew=readObjects_(SHEETS.CREW).filter(function(r){return String(r.active)==='true';}), roster=readObjects_(SHEETS.ROSTER).filter(function(r){return String(r.date).slice(0,7)===month;}), rates=readObjects_(SHEETS.RATES), meals=readObjects_(SHEETS.MEAL_RATES);
+  var batchIds=roster.map(function(r){return r.importBatchId;}).filter(Boolean), runId='RUN-'+month+'-'+Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'HHmmss');
+  var lines=crew.map(function(c){
+    var duties=roster.filter(function(r){return r.crewId===c.crewId;}), hours=duties.reduce(function(sum,r){return sum+Number(r.productiveHours||0);},0), layover=duties.reduce(function(sum,r){return sum+Number(r.layoverMinutes||0);},0), credit=c.crewType==='CABIN'?duties.reduce(function(sum,r){return sum+layoverCredit_(Number(r.layoverMinutes||0));},0):0;
+    var breakfast=duties.reduce(function(sum,r){return sum+(String(r.breakfastEligible)==='true'?mealRate_(meals,r.nightStopRegion||'Malaysia','BREAKFAST',r.date):0);},0), lunch=duties.reduce(function(sum,r){return sum+(String(r.lunchEligible)==='true'?mealRate_(meals,r.nightStopRegion||'Malaysia','LUNCH',r.date):0);},0), dinner=duties.reduce(function(sum,r){return sum+(String(r.dinnerEligible)==='true'?mealRate_(meals,r.nightStopRegion||'Malaysia','DINNER',r.date):0);},0);
+    var sim=duties.reduce(function(sum,r){return sum+Number(r.simulatorMinutes||0);},0)/60, instructor=duties.reduce(function(sum,r){return sum+Number(r.instructorMinutes||0);},0)/60, ground=duties.reduce(function(sum,r){return sum+Number(r.groundDutyMinutes||0);},0)/60;
+    var date=month+'-01', pa=c.crewType==='CABIN'?(hours+credit)*rate_(rates,'CABIN','PRODUCTIVITY_ALLOWANCE',date):0, pi=c.crewType==='CABIN'?(hours+credit)*rate_(rates,'CABIN','PRODUCTIVITY_INCENTIVE',date):0, fa=c.crewType==='FLIGHT'?hours*rate_(rates,'FLIGHT','FLIGHT_HOUR_ALLOWANCE',date):0, sa=c.crewType==='FLIGHT'?sim*rate_(rates,'FLIGHT','SIMULATOR_ALLOWANCE',date):0, ia=c.crewType==='FLIGHT'?instructor*rate_(rates,'FLIGHT','INSTRUCTOR_ALLOWANCE',date):0, ga=ground*rate_(rates,'ALL','GROUND_DUTY_ALLOWANCE',date), total=pa+pi+fa+sa+ia+ga+breakfast+lunch+dinner;
+    return {runId:runId,crewId:c.crewId,name:c.name,crewType:c.crewType,sourceActivityCount:duties.length,productiveHours:hours.toFixed(2),layoverMinutes:layover,layoverCreditHours:credit,breakfastAmount:breakfast.toFixed(2),lunchAmount:lunch.toFixed(2),dinnerAmount:dinner.toFixed(2),productivityAllowance:pa.toFixed(2),productivityIncentive:pi.toFixed(2),flightAllowance:fa.toFixed(2),simulatorAllowance:sa.toFixed(2),instructorAllowance:ia.toFixed(2),groundDutyAllowance:ga.toFixed(2),adjustmentAmount:'0.00',totalAmount:total.toFixed(2),status:'DRAFT'};
   });
-  var total = lines.reduce(function(s,l) { return s + Number(l.totalAmount); },0), run = {runId:runId,month:month,status:'DRAFT',createdAt:new Date().toISOString(),finalizedAt:'',totalAmount:total.toFixed(2),crewCount:lines.length};
-  appendObject_(SHEETS.RUNS, Object.keys(run), run); lines.forEach(function(l) { appendObject_(SHEETS.LINES, Object.keys(l), l); }); audit_('allowanceCalculate', actor, {runId:runId,month:month}); return {ok:true,run:run,lines:lines};
+  var total=lines.reduce(function(sum,l){return sum+Number(l.totalAmount);},0), run={runId:runId,month:month,importBatchId:batchIds[0]||'',status:'DRAFT',createdAt:new Date().toISOString(),createdBy:actor,checkedAt:'',checkedBy:'',approvedAt:'',approvedBy:'',finalizedAt:'',finalizedBy:'',totalAmount:total.toFixed(2),crewCount:lines.length};
+  appendObject_(SHEETS.RUNS, CORE_SHEET_HEADERS[SHEETS.RUNS], run); lines.forEach(function(l){appendObject_(SHEETS.LINES, CORE_SHEET_HEADERS[SHEETS.LINES], l);}); audit_('allowanceCalculate',actor,{runId:runId,month:month,importBatchId:run.importBatchId}); return {ok:true,run:run,lines:lines};
 }
-function getRun_(runId) { var run = readObjects_(SHEETS.RUNS).filter(function(r) { return r.runId === runId; })[0]; if (!run) throw new Error('Allowance run not found: ' + runId); return {ok:true,run:run,lines:readObjects_(SHEETS.LINES).filter(function(l) { return l.runId === runId; })}; }
-function finalizeRun_(runId, actor) { var result=getRun_(runId); if (result.run.status === 'FINALIZED') return result; var sheet=db_().getSheetByName(SHEETS.RUNS), values=sheet.getDataRange().getValues(), statusCol=values[0].indexOf('status')+1, finalCol=values[0].indexOf('finalizedAt')+1, row=values.findIndex(function(r,i){return i && r[0]===runId;})+1; sheet.getRange(row,statusCol).setValue('FINALIZED'); sheet.getRange(row,finalCol).setValue(new Date().toISOString()); audit_('allowanceFinalize',actor,{runId:runId}); return getRun_(runId); }
+function getRun_(runId) { var run=readObjects_(SHEETS.RUNS).filter(function(r){return r.runId===runId;})[0]; if(!run) throw new Error('Allowance run not found: '+runId); return {ok:true,run:run,lines:readObjects_(SHEETS.LINES).filter(function(l){return l.runId===runId;}),adjustments:readObjects_(SHEETS.ADJUSTMENTS).filter(function(a){return a.runId===runId;})}; }
+function advanceAllowanceStatus_(runId,status,actor,comment) { var transitions={DRAFT:'CHECKED',CHECKED:'APPROVED',APPROVED:'FINALIZED'}; var result=getRun_(runId), current=result.run.status; if(transitions[current]!==status) throw new Error('Invalid allowance status transition from '+current+' to '+status); var fields={}; if(status==='CHECKED'){fields.checkedAt=new Date().toISOString();fields.checkedBy=actor;} if(status==='APPROVED'){fields.approvedAt=new Date().toISOString();fields.approvedBy=actor;} if(status==='FINALIZED'){fields.finalizedAt=new Date().toISOString();fields.finalizedBy=actor;} if((status==='APPROVED'||status==='FINALIZED')&&(actor===result.run.createdBy||actor===result.run.checkedBy)) throw new Error('Segregation of duties: preparer/checker cannot '+status.toLowerCase()+' this run.'); fields.status=status; updateRecord_(SHEETS.RUNS,'runId',runId,fields,actor); var approval={approvalId:'APR-'+new Date().getTime(),runId:runId,fromStatus:current,toStatus:status,actor:actor,comment:comment,createdAt:new Date().toISOString()}; appendObject_(SHEETS.APPROVALS,CORE_SHEET_HEADERS[SHEETS.APPROVALS],approval); audit_('allowanceAdvanceStatus',actor,approval); return getRun_(runId); }
+function createAllowanceAdjustment_(adjustment,actor) {
+  ['runId','crewId','component','amount','reason'].forEach(function(k){if(adjustment[k]===undefined||adjustment[k]==='')throw new Error('adjustment.'+k+' is required');});
+  var run=getRun_(adjustment.runId).run; if(run.status==='FINALIZED') throw new Error('Finalized runs require a new correction run.');
+  var record={adjustmentId:'ADJ-'+new Date().getTime(),runId:adjustment.runId,crewId:adjustment.crewId,activityId:adjustment.activityId||'',component:adjustment.component,amount:Number(adjustment.amount).toFixed(2),reason:adjustment.reason,status:'APPROVED',requestedBy:actor,approvedBy:actor,createdAt:new Date().toISOString(),approvedAt:new Date().toISOString()};
+  appendObject_(SHEETS.ADJUSTMENTS,CORE_SHEET_HEADERS[SHEETS.ADJUSTMENTS],record);
+  var sheet=ensureSheet_(SHEETS.LINES,CORE_SHEET_HEADERS[SHEETS.LINES]), values=sheet.getDataRange().getValues(), headers=values[0], runCol=headers.indexOf('runId'), crewCol=headers.indexOf('crewId'), adjustmentCol=headers.indexOf('adjustmentAmount'), totalCol=headers.indexOf('totalAmount');
+  var rowIndex=values.findIndex(function(row,index){return index>0 && row[runCol]===record.runId && row[crewCol]===record.crewId;});
+  if(rowIndex<1) throw new Error('Allowance line not found for '+record.crewId);
+  var currentAdjustment=Number(values[rowIndex][adjustmentCol]||0), currentTotal=Number(values[rowIndex][totalCol]||0), amount=Number(record.amount);
+  sheet.getRange(rowIndex+1,adjustmentCol+1).setValue((currentAdjustment+amount).toFixed(2)); sheet.getRange(rowIndex+1,totalCol+1).setValue((currentTotal+amount).toFixed(2));
+  var total=readObjects_(SHEETS.LINES).filter(function(line){return line.runId===record.runId;}).reduce(function(sum,line){return sum+Number(line.totalAmount||0);},0);
+  updateRecord_(SHEETS.RUNS,'runId',record.runId,{totalAmount:total.toFixed(2)},actor); audit_('allowanceCreateAdjustment',actor,record); return {ok:true,adjustment:record,run:getRun_(record.runId).run};
+}
+function finalizeRun_(runId,actor) { return advanceAllowanceStatus_(runId,'FINALIZED',actor,'Finalized for payroll'); }
+
 function createAttendance_(attendance, actor) { ['crewId','date','flight','reportTime','status'].forEach(function(k){if(!attendance[k])throw new Error('attendance.'+k+' is required');}); var record={id:'ATT-'+new Date().getTime(),crewId:attendance.crewId,date:attendance.date,flight:attendance.flight,reportTime:attendance.reportTime,status:attendance.status,evidence:attendance.evidence||'',notes:attendance.notes||'',submittedAt:attendance.submittedAt||new Date().toISOString()}; appendObject_(SHEETS.ATTENDANCE,Object.keys(record),record); audit_('attendanceCreate',actor,record); return {ok:true,id:record.id,attendance:record}; }

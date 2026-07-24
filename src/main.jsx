@@ -427,37 +427,77 @@ function Attendance({ crewDirectory = mockData.crew }) {
 }
 
 const allowancePolicyRows = [
-  { crewType: 'Cabin crew', entitlement: 'Productivity allowance', trigger: 'Eligible roster productivity hours', rate: 'Configured in backend', status: 'Active' },
-  { crewType: 'Cabin crew', entitlement: 'Productivity incentive', trigger: 'Eligible roster productivity hours', rate: 'Configured in backend', status: 'Active' },
-  { crewType: 'Cabin crew', entitlement: 'Layover band', trigger: '2:00–2:59 hours = 1 hour; 3:00–11:00 hours = 3 hours', rate: 'Configured in backend', status: 'Active' },
-  { crewType: 'Flight crew', entitlement: 'Flight crew allowance', trigger: 'Actual roster and crew profile rule set', rate: 'Configured in backend', status: 'Active' },
-  { crewType: 'All crew', entitlement: 'Meal allowance', trigger: 'Configured entitlement criteria', rate: 'Configured in backend', status: 'Active' }
+  { crewType: 'Cabin crew', entitlement: 'Productivity allowance', trigger: 'Productive hours plus layover credit', rate: 'Effective-dated rate', status: 'Active' },
+  { crewType: 'Cabin crew', entitlement: 'Layover credit', trigger: '2:00–2:59 = 1 hour; 3:00–11:00 = 3 hours', rate: 'Rule versioned', status: 'Active' },
+  { crewType: 'All crew', entitlement: 'Meal allowance', trigger: 'Breakfast, lunch or dinner by region', rate: 'Regional effective-dated rate', status: 'Active' },
+  { crewType: 'Flight crew', entitlement: 'Flight / simulator / instructor', trigger: 'Actual roster activity minutes', rate: 'Effective-dated rate', status: 'Active' }
 ];
+function parseAllowanceCsv(text) {
+  const [headerLine, ...dataLines] = text.trim().split(/\r?\n/);
+  if (!headerLine) return [];
+  const headers = headerLine.split(',').map(item => item.trim());
+  return dataLines.filter(Boolean).map(line => {
+    const values = line.split(',').map(item => item.trim());
+    return Object.fromEntries(headers.map((header, index) => {
+      const value = values[index] ?? '';
+      if (['productiveHours','layoverMinutes','operatingMinutes','paxingMinutes','diversionMinutes','returnToChockMinutes','fdpExtensionMinutes','simulatorMinutes','instructorMinutes','groundDutyMinutes'].includes(header)) return [header, Number(value || 0)];
+      if (['breakfastEligible','lunchEligible','dinnerEligible'].includes(header)) return [header, /^(true|yes|1)$/i.test(value)];
+      return [header, value];
+    }));
+  });
+}
 function Allowances({ crewDirectory = mockData.crew }) {
   const [month, setMonth] = useState('2026-06');
   const [run, setRun] = useState(null);
   const [lines, setLines] = useState([]);
+  const [adjustments, setAdjustments] = useState([]);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('Select a period, then request a backend calculation run.');
-  const previewRows = crewDirectory.map((crew, index) => ({ crewId: crew.crewId, name: crew.name, crewType: crew.rank === 'CC' ? 'CABIN' : 'FLIGHT', productiveHours: (38 + index * 6).toFixed(2), layoverCreditHours: crew.rank === 'CC' ? (index % 2 ? 3 : 1) : 0, totalAmount: 'Pending', status: 'PREVIEW' }));
+  const [actor, setActor] = useState('ops.preparer@acms.demo');
+  const [message, setMessage] = useState('Import a validated actual-roster CSV or calculate the seeded pilot roster.');
+  const [importSummary, setImportSummary] = useState(null);
+  const [adjustment, setAdjustment] = useState({ crewId: crewDirectory[0]?.crewId || '', component: 'MEAL', amount: '', reason: '' });
+  const previewRows = crewDirectory.map((crew, index) => ({ crewId: crew.crewId, name: crew.name, crewType: crew.rank === 'CC' ? 'CABIN' : 'FLIGHT', sourceActivityCount: index % 3 + 1, productiveHours: (5 + index * .5).toFixed(2), layoverCreditHours: crew.rank === 'CC' ? (index % 2 ? 3 : 1) : 0, totalAmount: 'Pending', status: 'PREVIEW' }));
   const displayedLines = lines.length ? lines : previewRows;
   async function calculate() {
-    setBusy(true); setMessage('Requesting allowance calculation from the backend…');
-    const result = await callAcms('allowanceCalculate', { month, status: 'Draft' });
-    if (result?.ok) { setRun(result.run); setLines(result.lines || []); setMessage(`Draft ${result.run.runId} contains ${result.run.crewCount} crew records for review.`); }
-    else setMessage(`Calculation was not confirmed: ${result?.message || 'check the Database / API endpoint and retry.'}`);
+    setBusy(true); setMessage('Requesting a detailed allowance calculation…');
+    const result = await callAcms('allowanceCalculate', { month, actor });
+    if (result?.ok) { setRun(result.run); setLines(result.lines || []); setAdjustments(result.adjustments || []); setMessage(`Draft ${result.run.runId} contains ${result.run.crewCount} crew records. Review the daily-source totals before checking.`); }
+    else setMessage(`Calculation was not confirmed: ${result?.message || 'check the allowance backend and retry.'}`);
     setBusy(false);
   }
-  async function finalize() {
-    if (!run?.runId) return;
-    setBusy(true); setMessage('Finalizing the approved allowance run…');
-    const result = await callAcms('allowanceFinalize', { runId: run.runId });
-    if (result?.ok) { setRun(result.run); setLines(result.lines || lines); setMessage(`${result.run.runId} is finalized and ready for payroll handoff.`); }
-    else setMessage(`Finalization was not confirmed: ${result?.message || 'check the backend and retry.'}`);
+  async function importRoster(event) {
+    const file = event.target.files?.[0]; if (!file) return;
+    setBusy(true); setMessage(`Validating ${file.name}…`);
+    try {
+      const rows = parseAllowanceCsv(await file.text());
+      const result = await callAcms('allowanceImport', { month, rows, actor });
+      if (result?.ok) { setImportSummary(result.batch); setMessage(`Import ${result.batch.importBatchId} validated ${result.batch.validRowCount} row(s). Calculate the draft run next.`); }
+      else setMessage(`Import was rejected: ${result?.batch?.validationSummary || result?.message || 'check the CSV columns and crew IDs.'}`);
+    } catch (error) { setMessage(`Unable to read CSV: ${error.message}`); }
+    setBusy(false); event.target.value = '';
+  }
+  async function advance(status) {
+    if (!run?.runId) return; setBusy(true); setMessage(`Moving ${run.runId} to ${status}…`);
+    const result = await callAcms('allowanceAdvanceStatus', { runId: run.runId, status, actor, comment: `MVP ${status.toLowerCase()} action` });
+    if (result?.ok) { setRun(result.run); setLines(result.lines || lines); setAdjustments(result.adjustments || adjustments); setMessage(`${result.run.runId} is now ${result.run.status}.`); }
+    else setMessage(`Workflow update was not confirmed: ${result?.message || 'select an actor who is allowed to complete this step.'}`);
+    setBusy(false);
+  }
+  async function addAdjustment(event) {
+    event.preventDefault(); if (!run?.runId) return;
+    setBusy(true); const result = await callAcms('allowanceCreateAdjustment', { actor, adjustment: { ...adjustment, runId: run.runId } });
+    if (result?.ok) { setAdjustments(current => [result.adjustment, ...current]); setRun(current => result.run || current); setLines(current => current.map(line => line.crewId === result.adjustment.crewId ? { ...line, adjustmentAmount: (Number(line.adjustmentAmount || 0) + Number(result.adjustment.amount)).toFixed(2), totalAmount: (Number(line.totalAmount || 0) + Number(result.adjustment.amount)).toFixed(2) } : line)); setAdjustment(current => ({ ...current, amount: '', reason: '' })); setMessage(`Adjustment ${result.adjustment.adjustmentId} was recorded for audit and review.`); }
+    else setMessage(`Adjustment was not confirmed: ${result?.message || 'check the selected run and fields.'}`);
     setBusy(false);
   }
   const status = run?.status || 'DRAFT';
-  return <><div className="card allowanceControl"><div><div className="cardTitle">Monthly allowance run</div><p>Calculations use actual roster duties, crew type and effective backend rates. Review the generated lines before finalizing.</p></div><label>Period<input type="month" value={month} onChange={e=>setMonth(e.target.value)} disabled={busy}/></label><button className="downloadBtn" onClick={calculate} disabled={busy}>{busy ? 'Working…' : 'Calculate draft'}</button>{run && <button className="ghost" onClick={finalize} disabled={busy || status === 'FINALIZED'}>{status === 'FINALIZED' ? 'Finalized' : 'Finalize for payroll'}</button>}<span className="submissionMessage">{message}</span></div><Kpis items={[{label:'Crew in run',value:run?.crewCount ?? crewDirectory.length,note:'cabin + flight crew',tone:'info'},{label:'Run status',value:status,note:run?.runId || 'not calculated',tone:status === 'FINALIZED' ? 'ok' : 'warn'},{label:'Layover rule',value:'1h / 3h',note:'cabin crew band',tone:'info'},{label:'Run total',value:run ? `MYR ${Number(run.totalAmount).toFixed(2)}` : 'Pending',note:'configured rates',tone:run ? 'ok' : 'info'}]}/><div className="grid two"><Table title="Allowance entitlement rules" columns={['crewType','entitlement','trigger','rate','status']} rows={allowancePolicyRows}/><Table title={lines.length ? `Calculated lines · ${run?.runId}` : 'Crew calculation preview'} columns={['crewId','name','crewType','productiveHours','layoverCreditHours','mealCount','totalAmount','status']} rows={displayedLines}/></div></>;
+  const nextStatus = status === 'DRAFT' ? 'CHECKED' : status === 'CHECKED' ? 'APPROVED' : status === 'APPROVED' ? 'FINALIZED' : '';
+  return <>
+    <div className="card allowanceControl"><div><div className="cardTitle">Monthly allowance control run</div><p>Import the actual roster, calculate an explainable draft, then move it through checker and payroll approval controls.</p></div><label>Period<input type="month" value={month} onChange={e=>setMonth(e.target.value)} disabled={busy}/></label><label>Acting user<select value={actor} onChange={e=>setActor(e.target.value)} disabled={busy}><option>ops.preparer@acms.demo</option><option>payroll.checker@acms.demo</option><option>payroll.approver@acms.demo</option></select></label><label className="csvUpload">Import roster CSV<input type="file" accept=".csv,text/csv" onChange={importRoster} disabled={busy}/></label><button className="downloadBtn" onClick={calculate} disabled={busy}>{busy ? 'Working…' : 'Calculate draft'}</button>{run && nextStatus && <button className="ghost" onClick={()=>advance(nextStatus)} disabled={busy}>Mark {nextStatus.toLowerCase()}</button>}<span className="submissionMessage">{message}</span></div>
+    <Kpis items={[{label:'Import batch',value:importSummary?.status || run?.importBatchId || 'Seeded',note:importSummary ? `${importSummary.validRowCount}/${importSummary.rowCount} rows valid` : 'actual roster source',tone:importSummary?.status === 'VALIDATED' ? 'ok' : 'info'},{label:'Run status',value:status,note:run?.runId || 'not calculated',tone:status === 'FINALIZED' ? 'ok' : status === 'DRAFT' ? 'warn' : 'info'},{label:'Layover rule',value:'1h / 3h',note:'cabin crew band',tone:'info'},{label:'Run total',value:run ? `MYR ${Number(run.totalAmount).toFixed(2)}` : 'Pending',note:'detailed components',tone:run ? 'ok' : 'info'}]}/>
+    <div className="grid two"><Table title="Allowance rules in MVP scope" columns={['crewType','entitlement','trigger','rate','status']} rows={allowancePolicyRows}/><Table title={lines.length ? `Calculated allowance lines · ${run?.runId}` : 'Crew calculation preview'} columns={['crewId','name','crewType','sourceActivityCount','productiveHours','layoverCreditHours','breakfastAmount','lunchAmount','dinnerAmount','totalAmount','status']} rows={displayedLines}/></div>
+    {run && <div className="grid two allowanceWorkflow"><form className="card dataForm" onSubmit={addAdjustment}><div className="cardTitle">Discrepancy adjustment</div><p className="formHelp">Record the requested component, amount and reason against the active run. Finalized runs remain immutable.</p><label>Crew member<select value={adjustment.crewId} onChange={e=>setAdjustment(current=>({...current,crewId:e.target.value}))}>{crewDirectory.map(crew=><option key={crew.crewId} value={crew.crewId}>{crew.crewId} · {crew.name}</option>)}</select></label><div className="formRow"><label>Component<select value={adjustment.component} onChange={e=>setAdjustment(current=>({...current,component:e.target.value}))}>{['MEAL','PRODUCTIVITY','FLIGHT','SIMULATOR','INSTRUCTOR','GROUND_DUTY','OTHER'].map(item=><option key={item}>{item}</option>)}</select></label><label>Amount (MYR)<input type="number" step="0.01" value={adjustment.amount} onChange={e=>setAdjustment(current=>({...current,amount:e.target.value}))} required/></label></div><label>Reason<textarea value={adjustment.reason} onChange={e=>setAdjustment(current=>({...current,reason:e.target.value}))} required placeholder="Explain the prior-period or current-month discrepancy"/></label><button className="downloadBtn" type="submit" disabled={busy || status === 'FINALIZED'}>{status === 'FINALIZED' ? 'Run finalized' : 'Record adjustment'}</button></form><Table title="Adjustment register" columns={['adjustmentId','crewId','component','amount','reason','status','requestedBy']} rows={adjustments}/></div>}
+  </>;
 }
 function Policies() { const rows=[{policy:'Allowance calculation & distribution',version:'1.0',owner:'Payroll / Crew Ops',effective:'2026-06-01',status:'Approved'},{policy:'Crew attendance and reporting',version:'1.0',owner:'OCC',effective:'2026-06-01',status:'Approved'},{policy:'Medical certificate review',version:'1.0',owner:'HR Operations',effective:'2026-06-01',status:'Review due'},{policy:'Absence and no-show escalation',version:'1.0',owner:'OCC',effective:'2026-06-01',status:'Approved'}]; return <><Kpis items={[{label:'Policies',value:rows.length,note:'controlled records',tone:'info'},{label:'Approved',value:rows.filter(row=>row.status==='Approved').length,note:'active for operations',tone:'ok'},{label:'Review due',value:1,note:'medical policy',tone:'warn'},{label:'Audit',value:'Enabled',note:'backend changes logged',tone:'ok'}]}/><Table title="HR policy register" columns={['policy','version','owner','effective','status']} rows={rows}/><div className="card policyNote"><div className="cardTitle">Allowance control note</div><p>Rates, entitlement thresholds, payroll approvals and distribution history must be maintained by authorized backend users. The allowance module applies the documented cabin layover bands while retaining the backend as the source of truth for all monetary values.</p></div></>; }
 
